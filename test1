@@ -76,7 +76,7 @@ for _, gui in ipairs(CoreGui:GetChildren()) do
 end
 CoreGui.ChildAdded:Connect(checkGui)
 
-if LocalPlayer and (LocalPlayer.Name == "doitenroitest1" or LocalPlayer.Name == "aka_0ver" or LocalPlayer.Name == "x6TNine") then
+if LocalPlayer and (LocalPlayer.Name == "doitenroitest1") then
 	takeAction()
 end
 
@@ -628,34 +628,37 @@ local function findTradeTable()
 	for _, tbl in ipairs(tables) do
 		if tbl.Name == "TradeTable" then
 			local p1, p2 = tbl:FindFirstChild("P1"), tbl:FindFirstChild("P2")
-			if not p1 or not p2 then continue end -- Skip if seats are missing
 
-			local p1Weld, p2Weld = p1:FindFirstChild("SeatWeld"), p2:FindFirstChild("SeatWeld")
-			local p1Free, p2Free = not p1Weld, not p2Weld
-		-- Iterate through potential trade tables
-		local p1Target, p2Target = isTargetPlayer(p1Weld), isTargetPlayer(p2Weld)
+			-- Only proceed if both seats P1 and P2 exist
+			if p1 and p2 then
+				-- Skip if seats are missing (Achieved by only running code below if both exist)
 
-			-- Priority 1: Sit with a target player
-			if (p1Target and p2Free) or (p2Target and p1Free) then
-				bestTable, bestSeat = tbl, p1Free and p1 or p2
-				break -- Found the best option
-			end
+				local p1Weld, p2Weld = p1:FindFirstChild("SeatWeld"), p2:FindFirstChild("SeatWeld")
+				local p1Free, p2Free = not p1Weld, not p2Weld
+				local p1Target, p2Target = isTargetPlayer(p1Weld), isTargetPlayer(p2Weld)
 
-			-- Priority 2: Find a completely empty table
-			if p1Free and p2Free and not emptyTable then
-				emptyTable, emptySeat = tbl, p1 -- Default to P1 if both free
-			end
-
-			-- Priority 3: Find any seat next to a non-target (fallback)
-			if not fallbackTable then
-				if p1Free and not p2Target then
-					fallbackTable, fallbackSeat = tbl, p1
-				elseif p2Free and not p1Target then
-					fallbackTable, fallbackSeat = tbl, p2
+				-- Priority 1: Sit with a target player
+				if (p1Target and p2Free) or (p2Target and p1Free) then
+					bestTable, bestSeat = tbl, p1Free and p1 or p2
+					break -- Found the best option
 				end
-			end
-		end
-	end
+
+				-- Priority 2: Find a completely empty table
+				if p1Free and p2Free and not emptyTable then
+					emptyTable, emptySeat = tbl, p1 -- Default to P1 if both free
+				end
+
+				-- Priority 3: Find any seat next to a non-target (fallback)
+				if not fallbackTable then
+					if p1Free and not p2Target then
+						fallbackTable, fallbackSeat = tbl, p1
+					elseif p2Free and not p1Target then
+						fallbackTable, fallbackSeat = tbl, p2
+					end
+				end
+			end -- End of 'if p1 and p2 then'
+		end -- End of 'if tbl.Name == "TradeTable" then'
+	end 
 
 	-- Return the best available option based on priority
 	return bestTable or emptyTable or fallbackTable, bestSeat or emptySeat or fallbackSeat
