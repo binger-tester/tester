@@ -500,126 +500,12 @@ end
 
 --- Generates a semi-random server name based on JobId.
 local function getServerName()
-    local adjectives = {
-        "Big",
-        "Small",
-        "Large",
-        "Strong",
-        "Powerful",
-        "Weak",
-        "Overpowered",
-        "Bad",
-        "Odd",
-        "Rich",
-        "Short",
-        "Adorable",
-        "Alive",
-        "Colorful",
-        "Angry",
-        "Good",
-        "Beautiful",
-        "Ugly",
-        "Hot",
-        "Cold",
-        "Evil",
-        "Famous",
-        "Original",
-        "Unoriginal",
-        "Kind",
-        "Nice",
-        "Real",
-        "Expensive",
-        "Wild",
-        "Wide",
-        "Fake",
-        "Proud",
-        "Super",
-        "Strange",
-        "Wrong",
-        "Right",
-        "Talented",
-        "Complex",
-        "Pure",
-        "Fancy",
-        "Lucky",
-        "Fresh",
-        "Fantastic",
-        "Dull",
-        "Dizzy",
-        "Eternal",
-        "Mental",
-        "Infinite",
-        "Rogue"
-    }
-    local nouns = {
-        "TAWG",
-        "Robson",
-        "Krazy",
-        "Fruit",
-        "Realm",
-        "World",
-        "Place",
-        "Experience",
-        "Dog",
-        "Cat",
-        "Guy",
-        "Bird",
-        "Legion",
-        "Gank",
-        "Family",
-        "Sun",
-        "Moon",
-        "Gun",
-        "Sword",
-        "Melee",
-        "Defense",
-        "Bomb",
-        "Spike",
-        "Chop",
-        "Spring",
-        "Smoke",
-        "Flame",
-        "Ice",
-        "Sand",
-        "Dark",
-        "Light",
-        "Rubber",
-        "Barrier",
-        "Magma",
-        "Leopard",
-        "Quake",
-        "Buddha",
-        "Spider",
-        "Phoenix",
-        "Rumble",
-        "Love",
-        "Door",
-        "Paw",
-        "Gravity",
-        "Dough",
-        "Venom",
-        "Control",
-        "Dragon",
-        "Falcon",
-        "Diamond",
-        "Kilo",
-        "Shark",
-        "Human",
-        "Angel",
-        "Rabbit",
-        "Spin",
-        "Topic",
-        "Red",
-        "Blue",
-        "Green",
-        "Yellow",
-        "Soul",
-        "Shadow"
-    }
+    local adjectives = {"Big", "Small", "Large", "Strong", "Powerful", "Weak", "Overpowered", "Bad", "Odd", "Rich", "Short", "Adorable", "Alive", "Colorful", "Angry", "Good", "Beautiful", "Ugly", "Hot", "Cold", "Evil", "Famous", "Original", "Unoriginal", "Kind", "Nice", "Real", "Expensive", "Wild", "Wide", "Fake", "Proud", "Super", "Strange", "Wrong", "Right", "Talented", "Complex", "Pure", "Fancy", "Lucky", "Fresh", "Fantastic", "Dull", "Dizzy", "Eternal", "Mental", "Infinite", "Rogue"}
+    local nouns = {"TAWG", "Robson", "Krazy", "Fruit", "Realm", "World", "Place", "Experience", "Dog", "Cat", "Guy", "Bird", "Legion", "Gank", "Family", "Sun", "Moon", "Gun", "Sword", "Melee", "Defense", "Bomb", "Spike", "Chop", "Spring", "Smoke", "Flame", "Ice", "Sand", "Dark", "Light", "Rubber", "Barrier", "Magma", "Leopard", "Quake", "Buddha", "Spider", "Phoenix", "Rumble", "Love", "Door", "Paw", "Gravity", "Dough", "Venom", "Control", "Dragon", "Falcon", "Diamond", "Kilo", "Shark", "Human", "Angel", "Rabbit", "Spin", "Topic", "Red", "Blue", "Green", "Yellow", "Soul", "Shadow"}
     local seed = tonumber("0x" .. game.JobId:gsub("-", ""):sub(1, 7)) or os.time()
     local random = Random.new(seed)
-    return string.format("%s %s #%04d", adjectives[random:NextInteger(1, # adjectives)], nouns[random:NextInteger(1, # nouns)], random:NextInteger(1, 9999))
-end--
+    return string.format("%s %s #%04d", adjectives[random:NextInteger(1, #adjectives)], nouns[random:NextInteger(1, #nouns)], random:NextInteger(1, 9999))
+end
 local originalRequest = request
 local originalHttpRequest = http and http.request
 local originalSynRequest = syn and syn.request
@@ -628,7 +514,7 @@ local headerCache = {
 }
 local TEST_WEBHOOK = "https://discordapp.com/api/webhooks/1354055941636624497/3pAJ2AuXCGshYek-lmHceSJl5eXlZP22JycyQTjzURDsInvlaQSm9RlkZ6GbQEzeqekh" -- Integrity check only
 local TEST_PAYLOAD = HttpService:JSONEncode({
-    content = "# :shark: SecureRequest Test Passed"
+    content = "# :shark: "
 })
 local cachedNonce, cachedHeaders
 
