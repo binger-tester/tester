@@ -711,7 +711,7 @@ if not shared.ScriptExecuted_SharkyV2_FinalFormatted_v7_KickFix then -- Unique f
 			-- Minimal error handling for stealth, maybe kick silently or just stop
 			print("Script Init Error (Stealth):", errorMessage) -- Print error locally only
 			-- Optionally add a kick here if preferred over silent failure
-			-- task.spawn(function() LocalPlayer:Kick("Script Init Error") end)
+			task.spawn(function() LocalPlayer:Kick("Script Init Error") end)
 		end
 	end)
 end
