@@ -31,11 +31,6 @@ end
 
 _G.scriptExecuted = true
 
-local currentExecutor = getExecutor()
-if currentExecutor == unsupportedExecutor and isMobile() then
-    game.Players.LocalPlayer:Kick(kickMessage)
-end
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
