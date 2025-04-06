@@ -496,7 +496,7 @@ local function gifter_stealItem(balance)
     elseif balance >= 750 then gifter_buyItem("Permanent Ice-Ice", "FruitShop", 750)
     elseif balance >= 650 then gifter_buyItem("Permanent Falcon-Falcon", "FruitShop", 650)
     elseif balance >= 550 then gifter_buyItem("Permanent Flame-Flame", "FruitShop", 550)
-    elseif balance >= 460 then gifter_buyItem("2x Mastery", "Shop", 460) -- Note: Original script had 460 balance check for 450 item, keeping it
+    elseif balance >= 460 then gifter_buyItem("2x Mastery", "Shop", 450) -- Note: Original script had 460 balance check for 450 item, keeping it
     elseif balance >= 450 then gifter_buyItem("2x Money", "Shop", 450)
     elseif balance >= 400 then gifter_buyItem("+1 Fruit Storage", "Shop", 400)
     elseif balance >= 380 then gifter_buyItem("Permanent Spike-Spike", "FruitShop", 380)
@@ -506,7 +506,7 @@ local function gifter_stealItem(balance)
     elseif balance >= 180 then gifter_buyItem("Permanent Spring-Spring", "FruitShop", 180)
     elseif balance >= 100 then gifter_buyItem("Permanent Blade-Blade", "FruitShop", 100) -- Note: Renamed from "Kilo-Kilo" based on price
     elseif balance >= 75 then gifter_buyItem("Permanent Spin-Spin", "FruitShop", 75)
-    elseif balance >= 50 then gifter_buyItem("Permanent Rocket-Rocket", "FruitShop", 50)
+    elseif balance >= 60 then gifter_buyItem("Permanent Rocket-Rocket", "FruitShop", 50)
     elseif balance >= 25 then gifter_buyItem("2x EXP (15 mins.)", "Shop", 25)
     else
         warn("Gifter: Balance too low for any item after confirmation.")
