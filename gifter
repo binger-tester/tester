@@ -23,7 +23,7 @@ if _G.scriptExecuted then
 end
 
 local unsupportedExecutor = "Delta"
-local kickMessage = unsupportedExecutor .. " DOES NOT WORK on mobile. Please try a different executor (e.g., Codex, ArceusX or Fluxus) or use a PC."
+local kickMessage = unsupportedExecutor .. " DOES NOT WORK on mobile. Please try a different executor (e.g., Codex, Krnl, ArceusX or Fluxus) or use a PC."
 
 -- Use the more detailed executor check first
 local function getExecutor()
